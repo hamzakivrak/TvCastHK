@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTV Caster Global (Kurtarma 1)</title>
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg: #0f1014; --panel: #18191d; --surface: #23242a;
+            --primary: #6c5ce7; --text: #fff; --subtext: #a0a0a0;
+            --border: #2d2e36; --green: #2ecc71; --red: #e74c3c;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+
+        /* SOL PANEL (SIDEBAR) */
+        .sidebar { 
+            width: 400px; background: var(--panel); border-right: 1px solid var(--border); 
+            display: flex; flex-direction: column; padding: 20px; z-index: 10; 
+            box-shadow: 5px 0 20px #000; flex-shrink: 0; height: 100vh; overflow-y: auto;
+        }
+
+        /* TV BAĞLANTI KUTUSU */
+        .conn-box { 
+            background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; 
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-shrink: 0;
+        }
+        .conn-txt { font-size: 0.8rem; color: var(--subtext); display: block; }
+
+        /* KUTULAR */
+        .box { background: var(--surface); padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 15px; position: relative; flex-shrink: 0; }
+        .label { font-size: 0.7rem; text-transform: uppercase; color: var(--subtext); margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px; }
+        
+        input, textarea, select { 
+            width: 100%; background: #121212; border: 1px solid var(--border); color: #fff; 
+            border-radius: 8px; padding: 10px; box-sizing: border-box; font-family: inherit; font-size: 0.9rem;
+        }
+        textarea { height: 60px; resize: none; margin-bottom: 10px; }
+        input:focus, textarea:focus, select:focus { border-color: var(--primary); outline: none; }
+        
+        /* Select Box Özelleştirme */
+        select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236c5ce7%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right .7em top 50%; background-size: .65em auto; }
+
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-main { background: var(--primary); color: white; }
+        .btn-sub { background: #3d3e46; color: white; }
+        .btn-icon { padding: 0 15px; background: #3d3e46; color: white; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
+
+        /* ARAMA SONUÇLARI (SIDEBAR) */
+        #searchResults {
+            max-height: 150px; overflow-y: auto; margin-top: 10px; display: none;
+            border-top: 1px solid var(--border); padding-top: 10px;
+        }
+        .result-item {
+            padding: 8px; border-radius: 6px; background: #2f3038; margin-bottom: 5px; 
+            cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 0.85rem;
+            transition: 0.2s; border: 1px solid transparent;
+        }
+        .result-item:hover { background: var(--primary); color: white; }
+        
+        /* Sidebar Butonları */
+        .sidebar-btns { display: flex; gap: 10px; margin-top: 10px; }
+        .s-btn { 
+            flex: 1; height: 45px; border: 1px solid var(--border); border-radius: 8px; 
+            background: #3d3e46; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            transition: 0.2s;
+        }
+        .s-btn:hover { background: var(--primary); border-color: var(--primary); }
+        .s-btn.main { background: var(--primary); border-color: var(--primary); }
+        .s-btn i { font-size: 24px; }
+
+        /* SAĞ PANEL (CONTENT) */
+        .content { 
+            flex: 1; padding: 20px; overflow-y: auto; scroll-behavior: smooth; 
+            height: 100vh; box-sizing: border-box; 
+            padding-bottom: 120px; 
+        }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
+        .card { background: var(--surface); padding: 12px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; border: 1px solid transparent; }
+        .card:hover { background: #2f3038; border-color: var(--primary); transform: translateY(-2px); transition: 0.2s; }
+        .card.active { border-color: var(--primary); background: rgba(108, 92, 231, 0.15); }
+        .icon-box { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+        .icon-box img { width: 100%; height: 100%; object-fit: cover; }
+        .info { overflow: hidden; }
+        .name { font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .group { font-size: 0.7rem; color: var(--subtext); }
+
+        /* PLAYER (SABİT - Sadece Bilgi) */
+        .player { 
+            position: fixed; bottom: 20px; left: 420px; right: 20px; height: 70px; 
+            background: rgba(35, 36, 42, 0.95); backdrop-filter: blur(12px); 
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; 
+            display: flex; align-items: center; justify-content: center; padding: 0 30px; 
+            z-index: 100; box-shadow: 0 10px 40px #000; 
+            transform: translateY(20px); opacity: 0; pointer-events: none; transition: 0.3s;
+            text-align: center;
+        }
+        .player.show { opacity: 1; pointer-events: all; transform: translateY(0); }
+        
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; max-height: 50vh; overflow-y: auto; padding: 15px; }
+            .player { left: 10px; right: 10px; bottom: 10px; height: 60px; padding: 0 15px; }
+            .content { padding-bottom: 90px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="conn-box">
+        <div>
+            <h3 style="margin:0; color:white;">IPTV Caster</h3>
+            <span id="connStatus" class="conn-txt">Bağlantı Bekleniyor...</span>
+        </div>
+        <google-cast-launcher></google-cast-launcher>
+    </div>
+
+    <div class="box" style="background: #202126; border-color: #333; opacity: 0.7;">
+        <div class="label">1. GitHub'da Liste Ara</div>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="searchTerm" placeholder="Örn: Belgesel, Spor..." onkeypress="handleEnter(event)">
+            <button class="btn-icon" onclick="doSearch()" title="Ara">
+                <i class="material-icons-round">search</i>
+            </button>
+        </div>
+        <a id="backupLink" href="#" target="_blank" style="display:none; font-size:0.8rem; color:var(--primary); text-align:center; margin-top:5px;">Pencere açılmadıysa tıkla</a>
+    </div>
+
+    <div class="box">
+        <div class="label">2. Hazır Listeler (Ülke Seç)</div>
+        <select id="countrySelect" onchange="changeCountry()">
+            <option value="tr" selected>🇹🇷 Türkiye (Varsayılan)</option>
+            <option value="us">🇺🇸 USA (English)</option>
+            <option value="uk">🇬🇧 United Kingdom</option>
+            <option value="de">🇩🇪 Germany</option>
+            <option value="fr">🇫🇷 France</option>
+            <option value="ru">🇷🇺 Russia</option>
+            <option value="az">🇦🇿 Azerbaijan</option>
+            <option value="it">🇮🇹 Italy</option>
+            <option value="es">🇪🇸 Spain</option>
+            <option value="in">🇮🇳 India</option>
+        </select>
+    </div>
+
+    <div class="box" style="background: #202126; border-color: #333; opacity: 0.7;">
+        <div class="label" style="display:flex; justify-content:space-between;">
+            <span>3. Manuel Yükle (Özel)</span>
+            <span onclick="clearInput()" style="cursor:pointer; color:var(--red);">Temizle</span>
+        </div>
+        <textarea id="inputData" placeholder="Kendi Linkini veya Kodunu yapıştır."></textarea>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-sub" onclick="pasteClip()">
+                <i class="material-icons-round">content_paste</i>
+            </button>
+            <button class="btn btn-main" onclick="manualLoad()">
+                <i class="material-icons-round">play_arrow</i> Yükle
+            </button>
+        </div>
+        <div id="status" style="font-size:0.75rem; text-align:center; margin-top:8px; color:var(--subtext); min-height:1rem;"></div>
+    </div>
+
+    <div class="box" style="background: rgba(108, 92, 231, 0.05); border-color: var(--primary);">
+        <div class="label" style="color: var(--primary);">4. Kanal Bul & Oynat</div>
+        
+        <input type="text" id="filterInput" style="height:50px; font-size:1.1rem; background:#000; border-color:var(--primary);" placeholder="Kanal adı..." onkeyup="performSidebarSearch()">
+        
+        <div class="sidebar-btns">
+            <button class="s-btn" onclick="prevCh()"><i class="material-icons-round">skip_previous</i></button>
+            <button class="s-btn main" onclick="currCh()"><i class="material-icons-round">refresh</i></button>
+            <button class="s-btn" onclick="nextCh()"><i class="material-icons-round">skip_next</i></button>
+        </div>
+
+        <div id="searchResults"></div>
+        <div id="count" style="text-align:right; font-size:0.75rem; color:var(--subtext); margin-top:5px;">0 Kanal</div>
+    </div>
+</div>
+
+<div class="content">
+    <div id="grid" class="grid">
+        <div style="grid-column: 1/-1; display:flex; flex-direction:column; align-items:center; justify-content:center; height:60vh; color: var(--border);">
+            <i class="material-icons-round" style="font-size: 80px; margin-bottom: 20px; opacity:0.3;">downloading</i>
+            <p style="color:var(--subtext);">Türkiye listesi yükleniyor...</p>
+        </div>
+    </div>
+</div>
+
+<div class="player" id="player">
+    <div>
+        <h4 id="pTitle" style="margin:0; color:white;">Kanal Adı</h4>
+        <span id="pStatus" style="font-size:0.8rem; color:var(--primary);">Hazır</span>
+    </div>
+</div>
+
+<script>
+    let allChannels = [];
+    let curIdx = -1;
+    
+    // Varsayılan TR Listesi
+    const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadUrl(DEFAULT_LIST, "TR Listesi Hazır!");
+    });
+
+    // --- CAST ---
+    window['__onGCastApiAvailable'] = function(isAvailable) {
+        if (isAvailable) {
+            cast.framework.CastContext.getInstance().setOptions({
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+            const p = new cast.framework.RemotePlayer();
+            const c = new cast.framework.RemotePlayerController(p);
+            c.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
+                const s = document.getElementById('connStatus');
+                const b = document.querySelector('.conn-box');
+                if (p.isConnected) {
+                    s.innerText = "TV'ye Bağlı"; s.style.color = "var(--green)"; b.style.borderColor = "var(--green)";
+                } else {
+                    s.innerText = "Bağlantı Yok"; s.style.color = "var(--subtext)"; b.style.borderColor = "var(--primary)";
+                }
+            });
+        }
+    };
+
+    // --- ÜLKE DEĞİŞTİRME ---
+    function changeCountry() {
+        const code = document.getElementById('countrySelect').value;
+        const url = `https://iptv-org.github.io/iptv/countries/${code}.m3u`;
+        loadUrl(url, `${code.toUpperCase()} Listesi Yüklendi!`);
+    }
+
+    // --- ARAMA ---
+    function handleEnter(e) { if(e.key === 'Enter') doSearch(); }
+    function doSearch() {
+        let term = document.getElementById('searchTerm').value.trim();
+        if (!term) term = "turk kanallari";
+        const url = `https://www.google.com/search?q=${encodeURIComponent('site:github.com "EXTM3U" ' + term)}`;
+        const win = window.open(url, '_blank');
+        const bk = document.getElementById('backupLink');
+        bk.href = url; bk.style.display = "block";
+        if(!win) alert("Pencere engellendi, alttaki linke tıklayın.");
+    }
+
+    // --- YÜKLEME ---
+    async function pasteClip() { try { document.getElementById('inputData').value = await navigator.clipboard.readText(); } catch(e) { alert("Manuel yapıştırın."); } }
+    function clearInput() { document.getElementById('inputData').value = ''; }
+
+    function manualLoad() {
+        const val = document.getElementById('inputData').value.trim();
+        if(!val) return;
+        if(val.startsWith('http')) { loadUrl(val, "Özel Liste Yüklendi!"); } 
+        else { parse(val); document.getElementById('status').innerText = "Kod İşlendi!"; }
+    }
+
+    async function loadUrl(url, msg) {
+        const stat = document.getElementById('status');
+        stat.innerText = "İndiriliyor...";
+        if(url.includes('github.com') && !url.includes('raw')) url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+
+        try {
+            let res = await fetch(url);
+            if(!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
+            if(!res.ok) throw new Error("Fail");
+
+            const text = await res.text();
+            parse(text);
+            stat.innerText = msg; stat.style.color = "var(--green)";
+        } catch(e) {
+            stat.innerText = "Hata: Link açılmadı."; stat.style.color = "var(--red)";
+        }
+    }
+
+    function parse(text) {
+        allChannels = [];
+        const lines = text.split('\n');
+        let info = {};
+
+        for (let line of lines) {
+            line = line.trim();
+            if(!line) continue;
+            if(line.startsWith("document.write")) line = line.replace(/document\.write\(['"]|['"]\)\;?/g, "").replace(/\\n/g, "");
+
+            if (line.startsWith("#EXTINF")) {
+                let comma = line.lastIndexOf(',');
+                let name = (comma !== -1) ? line.substring(comma+1).trim() : "Kanal";
+                let grp = line.match(/group-title="([^"]*)"/);
+                let logo = line.match(/tvg-logo="([^"]*)"/);
+                info = { name, group: grp?grp[1]:"Genel", logo: logo?logo[1]:null };
+            } else if (line.startsWith("http")) {
+                if(info.name) {
+                    allChannels.push({ ...info, url: line });
+                    info = {};
+                }
+            }
+        }
+        document.getElementById('count').innerText = `${allChannels.length} Kanal`;
+        renderMainGrid(allChannels);
+    }
+
+    function renderMainGrid(list) {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = "";
+        list.slice(0, 1000).forEach((ch, i) => {
+            const el = document.createElement('div');
+            el.className = `card ${i===curIdx ? 'active' : ''}`;
+            el.id = `c-${i}`;
+            el.onclick = () => play(i);
+            
+            let img = `<div class="icon-box"><i class="material-icons-round" style="color:var(--primary)">tv</i></div>`;
+            if(ch.logo) img = `<div class="icon-box"><img src="${ch.logo}" onerror="this.onerror=null; this.parentNode.innerHTML='<i class=\'material-icons-round\' style=\'color:var(--primary)\'>tv</i>'"></div>`;
+
+            el.innerHTML = `${img}<div class="info"><div class="name">${ch.name}</div><div class="group">${ch.group}</div></div>`;
+            grid.appendChild(el);
+        });
+        if(list.length > 0) document.getElementById('player').classList.add('show');
+    }
+
+    // --- SIDEBAR ARAMA ---
+    function performSidebarSearch() {
+        const term = document.getElementById('filterInput').value.toLowerCase();
+        const resultsBox = document.getElementById('searchResults');
+        
+        if(term.length < 2) { resultsBox.style.display = 'none'; return; }
+
+        const matches = allChannels.filter(c => c.name.toLowerCase().includes(term));
+        resultsBox.innerHTML = "";
+        resultsBox.style.display = 'block';
+
+        if(matches.length === 0) {
+            resultsBox.innerHTML = "<div style='color:#aaa; font-size:0.8rem; text-align:center;'>Sonuç yok</div>";
+            return;
+        }
+
+        matches.slice(0, 50).forEach(ch => {
+            const originalIndex = allChannels.indexOf(ch);
+            const div = document.createElement('div');
+            div.className = 'result-item';
+            div.innerHTML = `<i class="material-icons-round" style="color:var(--primary);">play_arrow</i> <span>${ch.name}</span>`;
+            div.onclick = () => { play(originalIndex); };
+            resultsBox.appendChild(div);
+        });
+    }
+
+    // --- PLAYER ---
+    function play(idx) {
+        if(idx < 0 || idx >= allChannels.length) return;
+        curIdx = idx;
+        const ch = allChannels[idx];
+        
+        renderMainGrid(allChannels); 
+        document.getElementById(`c-${idx}`)?.scrollIntoView({behavior:'smooth', block:'center'});
+        
+        document.getElementById('pTitle').innerText = ch.name;
+        document.getElementById('pStatus').innerText = "TV'ye bağlanıyor...";
+
+        const session = cast.framework.CastContext.getInstance().getCurrentSession();
+        if (!session) {
+            alert("TV'ye bağlı değilsin!");
+            document.getElementById('pStatus').innerText = "Bağlantı Yok";
+            return;
+        }
+
+        const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl');
+        media.metadata = new chrome.cast.media.GenericMediaMetadata();
+        media.metadata.title = ch.name;
+        if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)];
+
+        const req = new chrome.cast.media.LoadRequest(media);
+        req.autoplay = true;
+
+        session.loadMedia(req).then(
+            () => document.getElementById('pStatus').innerText = "Oynatılıyor",
+            () => document.getElementById('pStatus').innerText = "Hata"
+        );
+    }
+
+    function nextCh() { if(allChannels.length) play(curIdx+1 >= allChannels.length ? 0 : curIdx+1); }
+    function prevCh() { if(allChannels.length) play(curIdx-1 < 0 ? allChannels.length-1 : curIdx-1); }
+    function currCh() { if(curIdx !== -1) play(curIdx); }
+
+    document.addEventListener('keydown', e => {
+        if(['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+        if(e.key==="ArrowRight") nextCh();
+        if(e.key==="ArrowLeft") prevCh();
+    });
+</script>
+
+</body>
+</html>
