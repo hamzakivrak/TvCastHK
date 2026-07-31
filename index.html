@@ -2,10 +2,10 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=1280, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#18191d">
-    <title>TV Cast - Desktop Mode</title>
+    <meta name="theme-color" content="#0f1014">
+    <title>TV Cast - Smart Player</title>
     
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -24,24 +24,29 @@
             margin: 0; 
             display: flex; 
             height: 100vh; 
-            overflow: hidden; 
-            min-width: 1024px; 
+            overflow-x: hidden; 
         }
 
-        /* --- SOL PANEL --- */
-        .sidebar { width: 400px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; box-shadow: 5px 0 20px #000; overflow-y: auto; z-index: 10; flex-shrink: 0;}
+        /* --- SOL PANEL & SAĞ İÇERİK (MOBİL UYUMLU) --- */
+        .sidebar { width: 350px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; box-shadow: 5px 0 20px #000; overflow-y: auto; z-index: 10; flex-shrink: 0;}
+        .content { flex: 1; padding: 20px; overflow-y: auto; position: relative; }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); box-sizing: border-box; max-height: 50vh; }
+            .content { padding: 10px; }
+        }
 
         /* --- MODÜLLER --- */
         .module { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 15px; overflow: hidden; flex-shrink: 0; }
         .module-header { padding: 15px; background: rgba(255,255,255,0.03); cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
-        .module-header:hover { background: rgba(255,255,255,0.06); }
         .module-title { font-size: 0.75rem; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; }
         .module-body { padding: 15px; border-top: 1px solid var(--border); }
         .icon-state { transition: transform 0.2s; color: #666; }
         
         /* --- FORM --- */
         input, textarea, select { width: 100%; background: #121212; border: 1px solid var(--border); color: #fff; border-radius: 8px; padding: 10px; box-sizing: border-box; font-family: inherit; }
-        textarea { resize: none; height: 60px; margin-bottom: 10px; font-size: 0.8rem; font-family: monospace; }
+        textarea { resize: none; height: 60px; margin-bottom: 10px; font-size: 0.8rem; }
         input:focus, textarea:focus, select:focus { border-color: var(--primary); outline: none; }
         
         /* --- BUTONLAR --- */
@@ -50,56 +55,40 @@
         .btn:hover { background: var(--primary); border-color: var(--primary); }
         .btn-icon { padding: 0 15px; background: #3d3e46; color: white; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
 
-        /* --- SAĞ İÇERİK --- */
-        .content { flex: 1; padding: 20px; overflow-y: auto; position: relative; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
-        .card { background: var(--surface); padding: 12px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; border: 1px solid transparent; }
-        .card:hover { background: #2f3038; border-color: var(--primary); }
+        /* --- GRID & KANALLAR --- */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+        .card { background: var(--surface); padding: 10px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; }
         .card.active { border-color: var(--primary); background: rgba(108, 92, 231, 0.15); }
-        .icon-box { width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+        .icon-box { width: 35px; height: 35px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
         .icon-box img { width: 100%; height: 100%; object-fit: cover; }
-        .info { overflow: hidden; }
-        .name { font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .name { font-weight: 500; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
 
         /* --- ARAMA SONUÇLARI --- */
-        #searchResults { max-height: 200px; overflow-y: auto; margin-top: 10px; display: none; border-top: 1px solid var(--border); padding-top: 10px; }
-        .result-item { padding: 8px; background: #2f3038; margin-bottom: 5px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
+        #searchResults { max-height: 200px; overflow-y: auto; margin-top: 10px; display: none; }
+        .result-item { padding: 10px; background: #2f3038; margin-bottom: 5px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
 
         /* --- PLAYER BAR --- */
-        .player-bar { position: fixed; bottom: 20px; left: 420px; right: 20px; height: 70px; background: rgba(35,36,42,0.95); border-radius: 20px; display: flex; align-items: center; justify-content: center; z-index: 100; pointer-events: none; opacity: 0; transition: 0.3s; }
+        .player-bar { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); height: 60px; background: rgba(35,36,42,0.95); border-radius: 15px; display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: 0.3s; padding: 0 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.5); border: 1px solid var(--border); pointer-events: none; }
         .player-bar.show { opacity: 1; }
 
         /* --- VİDEO İÇİ GİZLİ LİSTE (OVERLAY) --- */
-        .overlay-list { position: absolute; top: 41px; right: -280px; width: 280px; height: calc(100% - 41px); background: rgba(24, 25, 29, 0.95); backdrop-filter: blur(5px); overflow-y: auto; transition: right 0.3s ease; z-index: 10; border-left: 1px solid var(--border); }
-        .overlay-list.open { right: 0; }
-        .overlay-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; color: #ddd; transition: 0.2s; }
-        .overlay-item:hover { background: rgba(108, 92, 231, 0.2); color: white; }
+        .overlay-list { position: absolute; top: 45px; right: -280px; width: 250px; height: calc(100% - 45px); background: rgba(24, 25, 29, 0.95); backdrop-filter: blur(10px); overflow-y: auto; transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 30; border-left: 1px solid rgba(255,255,255,0.1); }
+        .overlay-list.open { right: 0; box-shadow: -10px 0 30px rgba(0,0,0,0.5); }
+        .overlay-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; color: #ddd; }
         .overlay-item.active { color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); border-left: 3px solid var(--primary); }
 
-        /* --- YENİ: TV KUMANDASI BUTONLARI --- */
-        .remote-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 50%; width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; color: white; }
-        .remote-btn:hover { background: rgba(108, 92, 231, 0.2); border-color: var(--primary); color: var(--primary); transform: scale(1.05); }
-        .remote-btn:active { transform: scale(0.95); }
+        /* --- VİDEO ÜZERİ İLERİ/GERİ TUŞLARI --- */
+        .video-nav { position: absolute; top: 45px; bottom: 0; width: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: rgba(255,255,255,0.2); transition: 0.3s; z-index: 15; -webkit-tap-highlight-color: transparent; }
+        .video-nav.left { left: 0; background: linear-gradient(to right, rgba(0,0,0,0.6), transparent); }
+        .video-nav.right { right: 0; background: linear-gradient(to left, rgba(0,0,0,0.6), transparent); }
+        .video-nav:hover, .video-nav:active { color: white; background: rgba(0,0,0,0.4); }
+        .video-nav i { font-size: 45px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
 
         /* --- KONTEYNER TAM EKRAN AYARLARI --- */
-        #previewContainer:fullscreen, #previewContainer:-webkit-full-screen {
-            max-width: none !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            border-radius: 0 !important;
-            margin: 0 !important;
-            border: none !important;
-            display: flex;
-            flex-direction: column;
-            background: #000;
-        }
-        #previewContainer:fullscreen video, #previewContainer:-webkit-full-screen video, #previewContainer:fullscreen #castRemote, #previewContainer:-webkit-full-screen #castRemote {
-            flex: 1;
-            height: auto;
-        }
-        #previewContainer:fullscreen .overlay-list, #previewContainer:-webkit-full-screen .overlay-list {
-            height: calc(100vh - 41px);
-        }
+        #previewContainer { display:none; position:relative; width:100%; max-width: 900px; margin: 0 auto 20px auto; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5); flex-direction: column; }
+        #previewContainer:fullscreen, #previewContainer:-webkit-full-screen { max-width: none !important; width: 100vw !important; height: 100vh !important; border-radius: 0 !important; margin: 0 !important; border: none !important; }
+        #previewContainer:fullscreen video, #previewContainer:-webkit-full-screen video { flex: 1; height: 100%; object-fit: contain; }
+        #previewContainer:fullscreen .overlay-list, #previewContainer:-webkit-full-screen .overlay-list { height: calc(100vh - 45px); }
     </style>
 </head>
 <body>
@@ -124,7 +113,6 @@
                 <input type="text" id="searchTerm" placeholder="Örn: Spor, Sinema...">
                 <button class="btn-icon" onclick="doSearch()"><i class="material-icons-round">search</i></button>
             </div>
-            <a id="backupLink" href="#" target="_blank" style="display:none; font-size:0.7rem; text-align:center; display:block; margin-top:5px; color:var(--primary);">Pencere açılmazsa tıkla</a>
         </div>
     </div>
 
@@ -155,9 +143,6 @@
                 <option value="us">🇺🇸 USA</option>
                 <option value="uk">🇬🇧 UK</option>
                 <option value="de">🇩🇪 Germany</option>
-                <option value="fr">🇫🇷 France</option>
-                <option value="ru">🇷🇺 Russia</option>
-                <option value="az">🇦🇿 Azerbaijan</option>
             </select>
         </div>
     </div>
@@ -181,62 +166,52 @@
 
 <div class="content">
     
-    <!-- ÖNİZLEME OYNATICISI & TV KUMANDASI (Konteyner) -->
-    <div id="previewContainer" style="display:none; position:relative; width:100%; max-width: 900px; margin: 0 auto 20px auto; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <!-- ÖNİZLEME OYNATICISI (Konteyner) -->
+    <div id="previewContainer">
         
         <!-- Oynatıcı Üst Barı -->
-        <div style="background: rgba(255,255,255,0.05); padding: 8px 15px; font-size: 0.85rem; color: #fff; display:flex; justify-content:space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 20; position:relative;">
+        <div style="background: rgba(255,255,255,0.05); padding: 10px 15px; font-size: 0.85rem; display:flex; justify-content:space-between; align-items: center; z-index: 40; border-bottom: 1px solid rgba(255,255,255,0.1);">
             <div style="display:flex; align-items:center; gap:10px;">
-                <!-- Kanal Listesini Aç/Kapat Butonu -->
-                <div onclick="toggleOverlay()" style="background: rgba(108,92,231,0.2); padding: 4px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 5px; color: var(--primary);">
+                <!-- Kanal Listesi Açma Butonu -->
+                <div onclick="toggleOverlay()" style="background: var(--primary); padding: 5px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 5px; color: white;">
                     <i class="material-icons-round" style="font-size: 18px;">format_list_bulleted</i> 
-                    <span style="font-weight: 500;">Kanallar</span>
+                    <span style="font-weight: 500; font-size:0.8rem;">Kanallar</span>
                 </div>
-                <span id="previewTitle" style="font-weight:600; margin-left: 10px; color:#ccc;">Kanal Adı</span>
+                <span id="previewTitle" style="font-weight:600; margin-left: 5px; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 150px;">Kanal</span>
             </div>
             
             <div style="display:flex; align-items:center; gap:15px;">
                 <!-- Tam Ekran Butonu -->
-                <span onclick="toggleFullScreen()" title="Tam Ekran (Çift Tık)" style="color: #ccc; cursor: pointer; display:flex; align-items:center;"><i class="material-icons-round" style="font-size: 22px;">fullscreen</i></span>
+                <span onclick="toggleFullScreen()" style="color: #ccc; cursor: pointer; display:flex;"><i class="material-icons-round" style="font-size: 24px;">fullscreen</i></span>
                 
-                <!-- Video İçi Cast Butonu -->
+                <!-- Cast Butonu -->
                 <google-cast-launcher style="width: 24px; height: 24px; cursor: pointer;"></google-cast-launcher>
                 
                 <!-- Kapat Butonu -->
-                <span onclick="closePreview()" style="color: var(--red); cursor: pointer; display:flex; align-items:center;"><i class="material-icons-round" style="font-size: 20px;">close</i></span>
+                <span onclick="closePreview()" style="color: var(--red); cursor: pointer; display:flex;"><i class="material-icons-round" style="font-size: 22px;">close</i></span>
             </div>
         </div>
 
-        <!-- CİHAZDA OYNATIRKEN GÖRÜNEN VİDEO EKRANI -->
-        <video id="localPlayer" controls style="width:100%; aspect-ratio: 16/9; background:#000; outline: none;" ondblclick="toggleFullScreen()"></video>
+        <div style="position: relative; flex: 1; display:flex; background:#000;">
+            <!-- VİDEO -->
+            <video id="localPlayer" controls style="width:100%; aspect-ratio: 16/9; background:#000; outline: none;" ondblclick="toggleFullScreen()"></video>
+            
+            <!-- VİDEO ÜZERİ İLERİ / GERİ DOKUNMATİK ALANLAR -->
+            <div class="video-nav left" onclick="prevCh(); event.stopPropagation();">
+                <i class="material-icons-round">chevron_left</i>
+            </div>
+            <div class="video-nav right" onclick="nextCh(); event.stopPropagation();">
+                <i class="material-icons-round">chevron_right</i>
+            </div>
+        </div>
         
-        <!-- YENİ: TV'YE YANSITIRKEN GÖRÜNEN KUMANDA EKRANI (Varsayılan gizli) -->
-        <div id="castRemote" style="display:none; width:100%; aspect-ratio: 16/9; background: radial-gradient(circle, #1a1c23 0%, #0a0a0c 100%); flex-direction:column; align-items:center; justify-content:center; position:relative;" ondblclick="toggleFullScreen()">
-            
-            <i class="material-icons-round" style="font-size: 50px; color: var(--primary); margin-bottom: 15px; opacity: 0.8;">cast_connected</i>
-            
-            <p style="margin: 0; font-size: 0.9rem; color: #aaa; text-transform: uppercase; letter-spacing: 2px;">TV'de Oynatılıyor</p>
-            <h2 id="castRemoteTitle" style="margin: 5px 0 30px 0; font-weight: 500; font-size: 1.8rem; text-align:center; padding: 0 20px; color: white;">Kanal Adı</h2>
-            
-            <div style="display:flex; gap: 40px; align-items: center;">
-                <div class="remote-btn" onclick="prevCh()" title="Önceki Kanal">
-                    <i class="material-icons-round" style="font-size:36px;">skip_previous</i>
-                </div>
-                <div class="remote-btn" onclick="nextCh()" title="Sonraki Kanal">
-                    <i class="material-icons-round" style="font-size:36px;">skip_next</i>
-                </div>
-            </div>
-        </div>
-
         <!-- Gizli Kanal Listesi -->
-        <div id="overlayList" class="overlay-list">
-            <!-- JS ile doldurulacak -->
-        </div>
+        <div id="overlayList" class="overlay-list"></div>
     </div>
 
     <div id="grid" class="grid">
-        <div style="grid-column:1/-1; height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#333;">
-            <i class="material-icons-round" style="font-size:80px;">downloading</i>
+        <div style="grid-column:1/-1; height:50vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#333;">
+            <i class="material-icons-round" style="font-size:60px;">downloading</i>
             <p>Liste Yükleniyor...</p>
         </div>
     </div>
@@ -269,12 +244,15 @@
         document.getElementById('overlayList').classList.toggle('open');
     }
 
-    function toggleFullScreen() {
+    // YENİ: Akıllı Tam Ekran Kontrolü (True/False Parametresi)
+    function toggleFullScreen(forceOpen = false) {
         const container = document.getElementById('previewContainer');
-        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const isFull = document.fullscreenElement || document.webkitFullscreenElement;
+        
+        if (!isFull) {
             if (container.requestFullscreen) container.requestFullscreen();
             else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
-        } else {
+        } else if (!forceOpen) { // Sadece butona veya çift tıka basıldığında çıkar
             if (document.exitFullscreen) document.exitFullscreen();
             else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
         }
@@ -307,16 +285,9 @@
                 
                 if (p.isConnected) {
                     s.innerText = "TV'ye Bağlı"; s.style.color = "#2ecc71"; b.style.borderColor = "#2ecc71";
-                    // Bağlantı sağlandığında, cihazda açık olan bir yayın varsa TV'ye aktar
-                    if(curIdx !== -1 && document.getElementById('previewContainer').style.display !== 'none') {
-                        play(curIdx); 
-                    }
+                    if(curIdx !== -1) play(curIdx); 
                 } else {
                     s.innerText = "Bağlantı Yok"; s.style.color = "#aaa"; b.style.borderColor = "#6c5ce7";
-                    // TV bağlantısı koptuğunda oynatıcı açıksa kapat veya normale dön
-                    if (document.getElementById('castRemote').style.display === 'flex') {
-                        closePreview();
-                    }
                 }
             });
         }
@@ -337,193 +308,111 @@
     function manualLoad() {
         let val = document.getElementById('inputData').value.trim();
         if(!val) return;
-
-        if (val.includes('<script') && val.includes('src=')) {
-            let srcMatch = val.match(/src=["'](.*?)["']/);
-            if (srcMatch && srcMatch[1]) val = srcMatch[1];
-        }
-
-        if (val.includes('gist.github.com')) {
-            val = val.replace('.js', '').replace('gist.github.com', 'gist.githubusercontent.com');
-            if (!val.endsWith('/raw')) val = val + '/raw';
-            loadUrl(val, "Gist İndiriliyor...");
-            return;
-        }
-
-        if(val.startsWith('http')) loadUrl(val, "Özel Liste");
-        else parse(val);
+        if (val.includes('<script') && val.includes('src=')) { let m = val.match(/src=["'](.*?)["']/); if(m) val = m[1]; }
+        if (val.includes('gist.github.com')) { val = val.replace('.js', '').replace('gist.github.com', 'gist.githubusercontent.com'); if (!val.endsWith('/raw')) val += '/raw'; loadUrl(val, "Gist İndiriliyor..."); return; }
+        if(val.startsWith('http')) loadUrl(val, "Özel Liste"); else parse(val);
     }
 
     async function loadUrl(url, msg) {
-        const stat = document.getElementById('status');
-        stat.innerText = "İndiriliyor...";
-        
-        if(url.includes('github.com') && !url.includes('gist') && !url.includes('raw') && !url.includes('user')) {
-            url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
-        }
-
+        const stat = document.getElementById('status'); stat.innerText = "İndiriliyor...";
+        if(url.includes('github.com') && !url.includes('gist') && !url.includes('raw') && !url.includes('user')) url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
         try {
             let res = await fetch(url);
             if(!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
             if(!res.ok) throw new Error("Hata");
-
-            const text = await res.text();
-            parse(text);
-            stat.innerText = msg;
-        } catch(e) {
-            stat.innerText = "Hata: Link açılmadı";
-        }
+            const text = await res.text(); parse(text); stat.innerText = msg;
+        } catch(e) { stat.innerText = "Hata: Link açılmadı"; }
     }
 
     function parse(text) {
         allChannels = [];
-        const lines = text.split('\n');
-        let info = {};
-
+        const lines = text.split('\n'); let info = {};
         for (let line of lines) {
-            line = line.trim();
-            if(!line) continue;
-            if(line.includes('document.write') || line.includes('<') || line.includes('{')) continue;
-
+            line = line.trim(); if(!line || line.includes('<') || line.includes('{')) continue;
             if (line.startsWith("#EXTINF")) {
                 let comma = line.lastIndexOf(',');
-                let name = (comma !== -1) ? line.substring(comma+1).trim() : "Kanal";
-                let logo = line.match(/tvg-logo="([^"]*)"/);
-                info = { name, logo: logo?logo[1]:null };
-            } else if (line.startsWith("http")) {
-                if(info.name) {
-                    allChannels.push({ ...info, url: line });
-                    info = {};
-                }
+                info = { name: (comma !== -1) ? line.substring(comma+1).trim() : "Kanal", logo: (line.match(/tvg-logo="([^"]*)"/)||[])[1] };
+            } else if (line.startsWith("http") && info.name) {
+                allChannels.push({ ...info, url: line }); info = {};
             }
         }
-        document.getElementById('count').innerText = `${allChannels.length} Kanal`;
-        renderGrid(allChannels);
+        document.getElementById('count').innerText = `${allChannels.length} Kanal`; renderGrid(allChannels);
     }
 
     function renderGrid(list) {
-        const grid = document.getElementById('grid');
-        const overlay = document.getElementById('overlayList');
-        
-        grid.innerHTML = "";
-        overlay.innerHTML = ""; 
+        const grid = document.getElementById('grid'), overlay = document.getElementById('overlayList');
+        grid.innerHTML = ""; overlay.innerHTML = ""; 
 
         list.slice(0, 1000).forEach((ch, i) => {
-            const div = document.createElement('div');
-            div.className = `card ${i===curIdx ? 'active' : ''}`;
-            div.id = `c-${i}`;
-            div.onclick = () => play(i);
-            
+            const div = document.createElement('div'); div.className = `card ${i===curIdx ? 'active' : ''}`; div.id = `c-${i}`; div.onclick = () => play(i);
             let img = `<div class="icon-box"><i class="material-icons-round" style="color:var(--primary)">tv</i></div>`;
             if(ch.logo) img = `<div class="icon-box"><img src="${ch.logo}" onerror="this.onerror=null; this.parentNode.innerHTML='<i class=\'material-icons-round\' style=\'color:var(--primary)\'>tv</i>'"></div>`;
+            div.innerHTML = `${img}<div class="name">${ch.name}</div>`; grid.appendChild(div);
 
-            div.innerHTML = `${img}<div class="info"><div class="name">${ch.name}</div></div>`;
-            grid.appendChild(div);
-
-            const overItem = document.createElement('div');
-            overItem.className = `overlay-item ${i===curIdx ? 'active' : ''}`;
-            overItem.id = `o-${i}`;
-            overItem.onclick = () => { play(i); };
-            overItem.innerHTML = `<i class="material-icons-round" style="font-size:16px;">${i===curIdx ? 'play_arrow' : 'tv'}</i> ${ch.name}`;
+            const overItem = document.createElement('div'); overItem.className = `overlay-item ${i===curIdx ? 'active' : ''}`; overItem.id = `o-${i}`;
+            overItem.onclick = () => { play(i); }; // Overlay'den seçince play() çalışır
+            overItem.innerHTML = `<i class="material-icons-round" style="font-size:16px;">${i===curIdx ? 'play_arrow' : 'tv'}</i> <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ch.name}</span>`;
             overlay.appendChild(overItem);
         });
-
         if(list.length > 0) document.getElementById('playerBar').classList.add('show');
     }
 
     function performSearch() {
-        const term = document.getElementById('filterInput').value.toLowerCase();
-        const box = document.getElementById('searchResults');
-        
+        const term = document.getElementById('filterInput').value.toLowerCase(), box = document.getElementById('searchResults');
         if(term.length < 2) { box.style.display = 'none'; return; }
-        
         const matches = allChannels.filter(c => c.name.toLowerCase().includes(term));
-        box.innerHTML = "";
-        box.style.display = 'block';
-
+        box.innerHTML = ""; box.style.display = 'block';
         matches.slice(0, 50).forEach(ch => {
-            const idx = allChannels.indexOf(ch);
-            const item = document.createElement('div');
-            item.className = 'result-item';
-            item.innerHTML = `<i class="material-icons-round" style="color:var(--primary)">play_arrow</i> ${ch.name}`;
-            item.onclick = () => play(idx);
-            box.appendChild(item);
+            const idx = allChannels.indexOf(ch), item = document.createElement('div');
+            item.className = 'result-item'; item.innerHTML = `<i class="material-icons-round" style="color:var(--primary)">play_arrow</i> ${ch.name}`;
+            item.onclick = () => play(idx); box.appendChild(item);
         });
     }
 
-    function doSearch() {
-        let term = document.getElementById('searchTerm').value.trim();
-        if(!term) term = "iptv list";
-        const url = `https://www.google.com/search?q=${encodeURIComponent('site:github.com "EXTM3U" ' + term)}`;
-        window.open(url, '_blank');
-    }
-
-    // --- 6. OYNATMA VE CAST KONTROLÜ ---
+    // --- 6. AKILLI OYNATMA (DUAL PLAY) ---
     function play(idx) {
         if(idx < 0 || idx >= allChannels.length) return;
-        curIdx = idx;
-        const ch = allChannels[idx];
+        curIdx = idx; const ch = allChannels[idx];
         
+        // Arayüzü güncelle
         renderGrid(allChannels); 
         document.getElementById(`c-${idx}`)?.scrollIntoView({behavior:'smooth', block:'center'});
-        
-        const activeOverlayItem = document.getElementById(`o-${idx}`);
-        if(activeOverlayItem) activeOverlayItem.scrollIntoView({behavior:'smooth', block:'center'});
+        document.getElementById(`o-${idx}`)?.scrollIntoView({behavior:'smooth', block:'center'});
         
         document.getElementById('pTitle').innerText = ch.name;
         document.getElementById('previewTitle').innerText = ch.name; 
 
+        // 1. Önce cihazda Oynat (Her halükarda)
+        playLocally(ch.url);
+
+        // 2. Kanala tıklandığında listeyi otomatik kapat
+        document.getElementById('overlayList').classList.remove('open');
+
+        // 3. Kanala tıklandığında otomatik tam ekrana geç
+        toggleFullScreen(true);
+
+        // 4. TV'ye bağlıysa, AYNANDA TV'de de oynat (Dual Play)
         const session = cast.framework.CastContext.getInstance().getCurrentSession();
-        
-        if (!session) {
-            // TV'ye bağlı değil, cihazda oynat (VİDEO MODU)
+        if (session) {
+            document.getElementById('pStatus').innerText = "TV ve Cihazda Oynatılıyor";
+            
+            const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl');
+            media.metadata = new chrome.cast.media.GenericMediaMetadata();
+            media.metadata.title = ch.name;
+            if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)];
+            const req = new chrome.cast.media.LoadRequest(media);
+            req.autoplay = true;
+
+            session.loadMedia(req).catch(() => console.log("Cast yükleme hatası"));
+        } else {
             document.getElementById('pStatus').innerText = "Cihazda Oynatılıyor";
-            playLocally(ch.url);
-            return;
         }
-
-        // TV'ye bağlı (KUMANDA MODU)
-        document.getElementById('pStatus').innerText = "TV'ye Bağlanıyor...";
-        
-        // Yerel video oynatıcıyı durdur ve gizle, Kumanda ekranını göster
-        if (hls) { hls.destroy(); hls = null; }
-        document.getElementById('localPlayer').pause();
-        document.getElementById('localPlayer').style.display = 'none';
-        document.getElementById('castRemote').style.display = 'flex';
-        document.getElementById('castRemoteTitle').innerText = ch.name;
-        
-        const container = document.getElementById('previewContainer');
-        container.style.display = 'flex'; 
-        container.style.flexDirection = 'column';
-        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-            container.scrollIntoView({behavior: "smooth", block: "start"});
-        }
-
-        // Medyayı TV'ye gönder
-        const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl');
-        media.metadata = new chrome.cast.media.GenericMediaMetadata();
-        media.metadata.title = ch.name;
-        if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)];
-
-        const req = new chrome.cast.media.LoadRequest(media);
-        req.autoplay = true;
-
-        session.loadMedia(req).then(
-            () => document.getElementById('pStatus').innerText = "TV'de Oynatılıyor",
-            () => document.getElementById('pStatus').innerText = "Hata"
-        );
     }
 
     function playLocally(url) {
         const video = document.getElementById('localPlayer');
         const container = document.getElementById('previewContainer');
-        
-        // TV Kumandasını gizle, Video oynatıcıyı göster
-        document.getElementById('castRemote').style.display = 'none';
-        video.style.display = 'block';
-        
         container.style.display = 'flex';
-        container.style.flexDirection = 'column';
         
         if (!document.fullscreenElement && !document.webkitFullscreenElement) {
             container.scrollIntoView({behavior: "smooth", block: "start"});
@@ -532,41 +421,24 @@
         if (hls) hls.destroy();
 
         if (Hls.isSupported()) {
-            hls = new Hls();
-            hls.loadSource(url);
-            hls.attachMedia(video);
+            hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play(); });
-        } 
-        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = url;
-            video.addEventListener('loadedmetadata', function() { video.play(); });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = url; video.addEventListener('loadedmetadata', function() { video.play(); });
         }
     }
 
     function closePreview() {
         const video = document.getElementById('localPlayer');
-        const container = document.getElementById('previewContainer');
-        
         if (document.fullscreenElement || document.webkitFullscreenElement) {
-            if (document.exitFullscreen) document.exitFullscreen();
-            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
         }
-
-        if (hls) {
-            hls.destroy();
-            hls = null;
-        }
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
+        if (hls) { hls.destroy(); hls = null; }
+        video.pause(); video.removeAttribute('src'); video.load();
         
-        container.style.display = 'none';
-        document.getElementById('castRemote').style.display = 'none';
+        document.getElementById('previewContainer').style.display = 'none';
         document.getElementById('overlayList').classList.remove('open');
-        
-        if (!cast.framework.CastContext.getInstance().getCurrentSession()) {
-            document.getElementById('pStatus').innerText = "Hazır";
-        }
+        document.getElementById('pStatus').innerText = cast.framework.CastContext.getInstance().getCurrentSession() ? "TV'de İzleniyor" : "Hazır";
     }
 
     function nextCh() { if(allChannels.length) play(curIdx+1 >= allChannels.length ? 0 : curIdx+1); }
