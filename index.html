@@ -8,7 +8,6 @@
     <title>TV Cast - Desktop Mode</title>
     
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-    <!-- HLS.js Kütüphanesi Eklendi -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
@@ -52,7 +51,7 @@
         .btn-icon { padding: 0 15px; background: #3d3e46; color: white; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
 
         /* --- SAĞ İÇERİK --- */
-        .content { flex: 1; padding: 20px; overflow-y: auto; }
+        .content { flex: 1; padding: 20px; overflow-y: auto; position: relative; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; }
         .card { background: var(--surface); padding: 12px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 12px; border: 1px solid transparent; }
         .card:hover { background: #2f3038; border-color: var(--primary); }
@@ -69,6 +68,13 @@
         /* --- PLAYER BAR --- */
         .player-bar { position: fixed; bottom: 20px; left: 420px; right: 20px; height: 70px; background: rgba(35,36,42,0.95); border-radius: 20px; display: flex; align-items: center; justify-content: center; z-index: 100; pointer-events: none; opacity: 0; transition: 0.3s; }
         .player-bar.show { opacity: 1; }
+
+        /* --- YENİ: VİDEO İÇİ GİZLİ LİSTE (OVERLAY) --- */
+        .overlay-list { position: absolute; top: 41px; right: -280px; width: 280px; height: calc(100% - 41px); background: rgba(24, 25, 29, 0.95); backdrop-filter: blur(5px); overflow-y: auto; transition: right 0.3s ease; z-index: 10; border-left: 1px solid var(--border); }
+        .overlay-list.open { right: 0; }
+        .overlay-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; color: #ddd; transition: 0.2s; }
+        .overlay-item:hover { background: rgba(108, 92, 231, 0.2); color: white; }
+        .overlay-item.active { color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); border-left: 3px solid var(--primary); }
     </style>
 </head>
 <body>
@@ -82,6 +88,7 @@
         <google-cast-launcher></google-cast-launcher>
     </div>
 
+    <!-- Modüller aynı kalıyor -->
     <div class="module">
         <div class="module-header" onclick="toggleModule('mod-github', 'icon-github')">
             <p class="module-title">1. GitHub'da Ara</p>
@@ -136,13 +143,11 @@
         </div>
         <div class="module-body" style="padding-top:0; border:none;">
             <input type="text" id="filterInput" placeholder="Kanal adı..." onkeyup="performSearch()">
-            
             <div class="btn-group">
                 <button class="btn" onclick="prevCh()"><i class="material-icons-round">skip_previous</i></button>
                 <button class="btn" style="background:var(--primary)" onclick="currCh()"><i class="material-icons-round">refresh</i></button>
                 <button class="btn" onclick="nextCh()"><i class="material-icons-round">skip_next</i></button>
             </div>
-
             <div id="searchResults"></div>
             <div id="count" style="text-align:right; font-size:0.7rem; color:#aaa; margin-top:5px;">0 Kanal</div>
         </div>
@@ -151,13 +156,36 @@
 
 <div class="content">
     
-    <!-- YENİ EKLENEN ÖNİZLEME OYNATICISI -->
-    <div id="previewContainer" style="display:none; width:100%; max-width: 800px; margin: 0 auto 20px auto; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border);">
-        <div style="background: rgba(255,255,255,0.05); padding: 10px; font-size: 0.8rem; color: #aaa; text-align: center; border-bottom: 1px solid var(--border);">
-            <i class="material-icons-round" style="font-size: 14px; vertical-align: middle;">visibility</i> Cihazda Önizleme Yapılıyor
-            <span onclick="closePreview()" style="float: right; color: var(--red); cursor: pointer;"><i class="material-icons-round" style="font-size: 16px;">close</i></span>
+    <!-- YENİ EKLENEN ÖNİZLEME OYNATICISI (Güncellendi) -->
+    <div id="previewContainer" style="display:none; position:relative; width:100%; max-width: 900px; margin: 0 auto 20px auto; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        
+        <!-- Oynatıcı Üst Barı -->
+        <div style="background: rgba(255,255,255,0.05); padding: 8px 15px; font-size: 0.85rem; color: #fff; display:flex; justify-content:space-between; align-items: center; border-bottom: 1px solid var(--border);">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <!-- Kanal Listesini Aç/Kapat Butonu -->
+                <div onclick="toggleOverlay()" style="background: rgba(108,92,231,0.2); padding: 4px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 5px; color: var(--primary);">
+                    <i class="material-icons-round" style="font-size: 18px;">format_list_bulleted</i> 
+                    <span style="font-weight: 500;">Kanallar</span>
+                </div>
+                <span id="previewTitle" style="font-weight:600; margin-left: 10px;">Kanal Adı</span>
+            </div>
+            
+            <div style="display:flex; align-items:center; gap:15px;">
+                <!-- Video İçi Cast Butonu -->
+                <google-cast-launcher style="width: 24px; height: 24px; cursor: pointer;"></google-cast-launcher>
+                
+                <!-- Kapat Butonu -->
+                <span onclick="closePreview()" style="color: var(--red); cursor: pointer; display:flex; align-items:center;"><i class="material-icons-round" style="font-size: 20px;">close</i></span>
+            </div>
         </div>
+
+        <!-- Video Alanı -->
         <video id="localPlayer" controls style="width:100%; aspect-ratio: 16/9; background:#000; outline: none;"></video>
+        
+        <!-- Gizli Kanal Listesi -->
+        <div id="overlayList" class="overlay-list">
+            <!-- JS ile doldurulacak -->
+        </div>
     </div>
 
     <div id="grid" class="grid">
@@ -191,10 +219,15 @@
         }
     }
 
+    // YENİ: Video İçi Gizli Listeyi Aç/Kapat
+    function toggleOverlay() {
+        document.getElementById('overlayList').classList.toggle('open');
+    }
+
     // --- 2. TEMEL DEĞİŞKENLER ---
     let allChannels = [];
     let curIdx = -1;
-    let hls = null; // Yerel oynatıcı için HLS değişkeni
+    let hls = null;
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
 
     // --- 3. BAŞLANGIÇ ---
@@ -216,6 +249,11 @@
                 const b = document.querySelector('.conn-box');
                 if (p.isConnected) {
                     s.innerText = "TV'ye Bağlı"; s.style.color = "#2ecc71"; b.style.borderColor = "#2ecc71";
+                    
+                    // Eğer önizlemede bir şey çalıyorsa otomatik olarak TV'ye aktar
+                    if(curIdx !== -1 && document.getElementById('previewContainer').style.display !== 'none') {
+                        play(curIdx);
+                    }
                 } else {
                     s.innerText = "Bağlantı Yok"; s.style.color = "#aaa"; b.style.borderColor = "#6c5ce7";
                 }
@@ -223,7 +261,7 @@
         }
     };
 
-    // --- 5. LİSTE & SCRIPT DEDEKTİFİ ---
+    // --- 5. LİSTE & YÜKLEME ---
     function changeCountry() {
         const val = document.getElementById('countrySelect').value;
         let url = val.startsWith('http') ? val : `https://iptv-org.github.io/iptv/countries/${val}.m3u`;
@@ -235,31 +273,22 @@
         catch(e) { alert("Manuel yapıştırın."); } 
     }
 
-    // --- GIST MASTER FONKSİYONU ---
     function manualLoad() {
         let val = document.getElementById('inputData').value.trim();
         if(!val) return;
 
-        // 1. Script Tag Temizliği
         if (val.includes('<script') && val.includes('src=')) {
             let srcMatch = val.match(/src=["'](.*?)["']/);
-            if (srcMatch && srcMatch[1]) {
-                val = srcMatch[1];
-            }
+            if (srcMatch && srcMatch[1]) val = srcMatch[1];
         }
 
-        // 2. Gist Dedektifi (Domain Değiştirme ve Raw Yapma)
         if (val.includes('gist.github.com')) {
-            val = val.replace('.js', '');
-            val = val.replace('gist.github.com', 'gist.githubusercontent.com');
-            if (!val.endsWith('/raw')) {
-                val = val + '/raw';
-            }
+            val = val.replace('.js', '').replace('gist.github.com', 'gist.githubusercontent.com');
+            if (!val.endsWith('/raw')) val = val + '/raw';
             loadUrl(val, "Gist İndiriliyor...");
             return;
         }
 
-        // 3. Standart Yükleme
         if(val.startsWith('http')) loadUrl(val, "Özel Liste");
         else parse(val);
     }
@@ -313,8 +342,13 @@
 
     function renderGrid(list) {
         const grid = document.getElementById('grid');
+        const overlay = document.getElementById('overlayList');
+        
         grid.innerHTML = "";
+        overlay.innerHTML = ""; // Gizli listeyi de temizle
+
         list.slice(0, 1000).forEach((ch, i) => {
+            // Ana Izgara Öğesi
             const div = document.createElement('div');
             div.className = `card ${i===curIdx ? 'active' : ''}`;
             div.id = `c-${i}`;
@@ -325,7 +359,16 @@
 
             div.innerHTML = `${img}<div class="info"><div class="name">${ch.name}</div></div>`;
             grid.appendChild(div);
+
+            // Gizli Kenar Menüsü Öğesi (YENİ)
+            const overItem = document.createElement('div');
+            overItem.className = `overlay-item ${i===curIdx ? 'active' : ''}`;
+            overItem.id = `o-${i}`;
+            overItem.onclick = () => { play(i); };
+            overItem.innerHTML = `<i class="material-icons-round" style="font-size:16px;">${i===curIdx ? 'play_arrow' : 'tv'}</i> ${ch.name}`;
+            overlay.appendChild(overItem);
         });
+
         if(list.length > 0) document.getElementById('playerBar').classList.add('show');
     }
 
@@ -356,30 +399,34 @@
         window.open(url, '_blank');
     }
 
-    // --- 6. OYNATMA VE CAST MANTIGI ---
+    // --- 6. OYNATMA VE CAST ---
     function play(idx) {
         if(idx < 0 || idx >= allChannels.length) return;
         curIdx = idx;
         const ch = allChannels[idx];
         
-        renderGrid(allChannels);
+        // Grid ve Overlay listesindeki aktif durumları güncelle
+        renderGrid(allChannels); 
         document.getElementById(`c-${idx}`)?.scrollIntoView({behavior:'smooth', block:'center'});
         
+        // Gizli listede aktif kanalı görünüme kaydır
+        const activeOverlayItem = document.getElementById(`o-${idx}`);
+        if(activeOverlayItem) activeOverlayItem.scrollIntoView({behavior:'smooth', block:'center'});
+        
         document.getElementById('pTitle').innerText = ch.name;
+        document.getElementById('previewTitle').innerText = ch.name; // Videonun üstündeki başlık
 
-        // CAST OTURUMUNU KONTROL ET
         const session = cast.framework.CastContext.getInstance().getCurrentSession();
         
         if (!session) {
-            // TV'YE BAĞLI DEĞİLSE YEREL CİHAZDA OYNAT
             document.getElementById('pStatus').innerText = "Cihazda Oynatılıyor";
             playLocally(ch.url);
             return;
         }
 
-        // TV'YE BAĞLIYSA CAST ET
+        // TV'ye bağlıysa
         document.getElementById('pStatus').innerText = "TV'ye Bağlanıyor...";
-        closePreview(); // TV'ye geçince yerel oynatıcıyı kapat
+        closePreview(); 
 
         const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl');
         media.metadata = new chrome.cast.media.GenericMediaMetadata();
@@ -399,25 +446,21 @@
         const video = document.getElementById('localPlayer');
         const container = document.getElementById('previewContainer');
         container.style.display = 'block';
+        
+        // Sayfayı videoya doğru kaydır
+        container.scrollIntoView({behavior: "smooth", block: "start"});
 
-        if (hls) {
-            hls.destroy();
-        }
+        if (hls) hls.destroy();
 
         if (Hls.isSupported()) {
             hls = new Hls();
             hls.loadSource(url);
             hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                video.play();
-            });
+            hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play(); });
         } 
-        // Safari (iOS/macOS) HLS'yi doğal olarak destekler
         else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = url;
-            video.addEventListener('loadedmetadata', function() {
-                video.play();
-            });
+            video.addEventListener('loadedmetadata', function() { video.play(); });
         }
     }
 
@@ -433,6 +476,7 @@
         video.removeAttribute('src');
         video.load();
         container.style.display = 'none';
+        document.getElementById('overlayList').classList.remove('open');
         
         if (!cast.framework.CastContext.getInstance().getCurrentSession()) {
             document.getElementById('pStatus').innerText = "Hazır";
@@ -446,4 +490,3 @@
 
 </body>
 </html>
-    
