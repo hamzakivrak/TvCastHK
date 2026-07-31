@@ -69,12 +69,32 @@
         .player-bar { position: fixed; bottom: 20px; left: 420px; right: 20px; height: 70px; background: rgba(35,36,42,0.95); border-radius: 20px; display: flex; align-items: center; justify-content: center; z-index: 100; pointer-events: none; opacity: 0; transition: 0.3s; }
         .player-bar.show { opacity: 1; }
 
-        /* --- YENİ: VİDEO İÇİ GİZLİ LİSTE (OVERLAY) --- */
+        /* --- VİDEO İÇİ GİZLİ LİSTE (OVERLAY) --- */
         .overlay-list { position: absolute; top: 41px; right: -280px; width: 280px; height: calc(100% - 41px); background: rgba(24, 25, 29, 0.95); backdrop-filter: blur(5px); overflow-y: auto; transition: right 0.3s ease; z-index: 10; border-left: 1px solid var(--border); }
         .overlay-list.open { right: 0; }
         .overlay-item { padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; color: #ddd; transition: 0.2s; }
         .overlay-item:hover { background: rgba(108, 92, 231, 0.2); color: white; }
         .overlay-item.active { color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); border-left: 3px solid var(--primary); }
+
+        /* --- YENİ: KONTEYNER TAM EKRAN (FULLSCREEN) AYARLARI --- */
+        #previewContainer:fullscreen, #previewContainer:-webkit-full-screen {
+            max-width: none !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+        }
+        #previewContainer:fullscreen video, #previewContainer:-webkit-full-screen video {
+            flex: 1; /* Videoyu kalan alana yay */
+            height: auto;
+        }
+        #previewContainer:fullscreen .overlay-list, #previewContainer:-webkit-full-screen .overlay-list {
+            height: calc(100vh - 41px); /* Tam ekranda listenin boyunu ayarla */
+        }
     </style>
 </head>
 <body>
@@ -156,7 +176,7 @@
 
 <div class="content">
     
-    <!-- YENİ EKLENEN ÖNİZLEME OYNATICISI (Güncellendi) -->
+    <!-- ÖNİZLEME OYNATICISI (Konteyner) -->
     <div id="previewContainer" style="display:none; position:relative; width:100%; max-width: 900px; margin: 0 auto 20px auto; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
         
         <!-- Oynatıcı Üst Barı -->
@@ -171,6 +191,9 @@
             </div>
             
             <div style="display:flex; align-items:center; gap:15px;">
+                <!-- Tam Ekran Butonu -->
+                <span onclick="toggleFullScreen()" title="Tam Ekran (Çift Tık)" style="color: #ccc; cursor: pointer; display:flex; align-items:center;"><i class="material-icons-round" style="font-size: 22px;">fullscreen</i></span>
+                
                 <!-- Video İçi Cast Butonu -->
                 <google-cast-launcher style="width: 24px; height: 24px; cursor: pointer;"></google-cast-launcher>
                 
@@ -179,8 +202,8 @@
             </div>
         </div>
 
-        <!-- Video Alanı -->
-        <video id="localPlayer" controls style="width:100%; aspect-ratio: 16/9; background:#000; outline: none;"></video>
+        <!-- YENİ: Çift Tıklama Etkinliği Eklendi (ondblclick) -->
+        <video id="localPlayer" controls style="width:100%; aspect-ratio: 16/9; background:#000; outline: none;" ondblclick="toggleFullScreen()"></video>
         
         <!-- Gizli Kanal Listesi -->
         <div id="overlayList" class="overlay-list">
@@ -219,9 +242,29 @@
         }
     }
 
-    // YENİ: Video İçi Gizli Listeyi Aç/Kapat
     function toggleOverlay() {
         document.getElementById('overlayList').classList.toggle('open');
+    }
+
+    // YENİ: Tam Ekran Yönetimi
+    function toggleFullScreen() {
+        const container = document.getElementById('previewContainer');
+        
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            // Tam ekrana geç
+            if (container.requestFullscreen) {
+                container.requestFullscreen();
+            } else if (container.webkitRequestFullscreen) { /* Safari */
+                container.webkitRequestFullscreen();
+            }
+        } else {
+            // Tam ekrandan çık
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) { /* Safari */
+                document.webkitExitFullscreen();
+            }
+        }
     }
 
     // --- 2. TEMEL DEĞİŞKENLER ---
@@ -250,7 +293,6 @@
                 if (p.isConnected) {
                     s.innerText = "TV'ye Bağlı"; s.style.color = "#2ecc71"; b.style.borderColor = "#2ecc71";
                     
-                    // Eğer önizlemede bir şey çalıyorsa otomatik olarak TV'ye aktar
                     if(curIdx !== -1 && document.getElementById('previewContainer').style.display !== 'none') {
                         play(curIdx);
                     }
@@ -345,10 +387,9 @@
         const overlay = document.getElementById('overlayList');
         
         grid.innerHTML = "";
-        overlay.innerHTML = ""; // Gizli listeyi de temizle
+        overlay.innerHTML = ""; 
 
         list.slice(0, 1000).forEach((ch, i) => {
-            // Ana Izgara Öğesi
             const div = document.createElement('div');
             div.className = `card ${i===curIdx ? 'active' : ''}`;
             div.id = `c-${i}`;
@@ -360,7 +401,6 @@
             div.innerHTML = `${img}<div class="info"><div class="name">${ch.name}</div></div>`;
             grid.appendChild(div);
 
-            // Gizli Kenar Menüsü Öğesi (YENİ)
             const overItem = document.createElement('div');
             overItem.className = `overlay-item ${i===curIdx ? 'active' : ''}`;
             overItem.id = `o-${i}`;
@@ -405,16 +445,14 @@
         curIdx = idx;
         const ch = allChannels[idx];
         
-        // Grid ve Overlay listesindeki aktif durumları güncelle
         renderGrid(allChannels); 
         document.getElementById(`c-${idx}`)?.scrollIntoView({behavior:'smooth', block:'center'});
         
-        // Gizli listede aktif kanalı görünüme kaydır
         const activeOverlayItem = document.getElementById(`o-${idx}`);
         if(activeOverlayItem) activeOverlayItem.scrollIntoView({behavior:'smooth', block:'center'});
         
         document.getElementById('pTitle').innerText = ch.name;
-        document.getElementById('previewTitle').innerText = ch.name; // Videonun üstündeki başlık
+        document.getElementById('previewTitle').innerText = ch.name; 
 
         const session = cast.framework.CastContext.getInstance().getCurrentSession();
         
@@ -424,7 +462,6 @@
             return;
         }
 
-        // TV'ye bağlıysa
         document.getElementById('pStatus').innerText = "TV'ye Bağlanıyor...";
         closePreview(); 
 
@@ -445,10 +482,12 @@
     function playLocally(url) {
         const video = document.getElementById('localPlayer');
         const container = document.getElementById('previewContainer');
-        container.style.display = 'block';
+        container.style.display = 'flex'; // Tam ekran düzeni için artık 'flex' kullanıyoruz
+        container.style.flexDirection = 'column';
         
-        // Sayfayı videoya doğru kaydır
-        container.scrollIntoView({behavior: "smooth", block: "start"});
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            container.scrollIntoView({behavior: "smooth", block: "start"});
+        }
 
         if (hls) hls.destroy();
 
@@ -468,6 +507,12 @@
         const video = document.getElementById('localPlayer');
         const container = document.getElementById('previewContainer');
         
+        // Eğer tam ekrandaysa, çıkış yap
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+
         if (hls) {
             hls.destroy();
             hls = null;
