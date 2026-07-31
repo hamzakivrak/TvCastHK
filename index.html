@@ -76,7 +76,12 @@
         .overlay-item:hover { background: rgba(108, 92, 231, 0.2); color: white; }
         .overlay-item.active { color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); border-left: 3px solid var(--primary); }
 
-        /* --- YENİ: KONTEYNER TAM EKRAN (FULLSCREEN) AYARLARI --- */
+        /* --- YENİ: TV KUMANDASI BUTONLARI --- */
+        .remote-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 50%; width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; color: white; }
+        .remote-btn:hover { background: rgba(108, 92, 231, 0.2); border-color: var(--primary); color: var(--primary); transform: scale(1.05); }
+        .remote-btn:active { transform: scale(0.95); }
+
+        /* --- KONTEYNER TAM EKRAN AYARLARI --- */
         #previewContainer:fullscreen, #previewContainer:-webkit-full-screen {
             max-width: none !important;
             width: 100vw !important;
@@ -88,12 +93,12 @@
             flex-direction: column;
             background: #000;
         }
-        #previewContainer:fullscreen video, #previewContainer:-webkit-full-screen video {
-            flex: 1; /* Videoyu kalan alana yay */
+        #previewContainer:fullscreen video, #previewContainer:-webkit-full-screen video, #previewContainer:fullscreen #castRemote, #previewContainer:-webkit-full-screen #castRemote {
+            flex: 1;
             height: auto;
         }
         #previewContainer:fullscreen .overlay-list, #previewContainer:-webkit-full-screen .overlay-list {
-            height: calc(100vh - 41px); /* Tam ekranda listenin boyunu ayarla */
+            height: calc(100vh - 41px);
         }
     </style>
 </head>
@@ -176,18 +181,18 @@
 
 <div class="content">
     
-    <!-- ÖNİZLEME OYNATICISI (Konteyner) -->
+    <!-- ÖNİZLEME OYNATICISI & TV KUMANDASI (Konteyner) -->
     <div id="previewContainer" style="display:none; position:relative; width:100%; max-width: 900px; margin: 0 auto 20px auto; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
         
         <!-- Oynatıcı Üst Barı -->
-        <div style="background: rgba(255,255,255,0.05); padding: 8px 15px; font-size: 0.85rem; color: #fff; display:flex; justify-content:space-between; align-items: center; border-bottom: 1px solid var(--border);">
+        <div style="background: rgba(255,255,255,0.05); padding: 8px 15px; font-size: 0.85rem; color: #fff; display:flex; justify-content:space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 20; position:relative;">
             <div style="display:flex; align-items:center; gap:10px;">
                 <!-- Kanal Listesini Aç/Kapat Butonu -->
                 <div onclick="toggleOverlay()" style="background: rgba(108,92,231,0.2); padding: 4px 8px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 5px; color: var(--primary);">
                     <i class="material-icons-round" style="font-size: 18px;">format_list_bulleted</i> 
                     <span style="font-weight: 500;">Kanallar</span>
                 </div>
-                <span id="previewTitle" style="font-weight:600; margin-left: 10px;">Kanal Adı</span>
+                <span id="previewTitle" style="font-weight:600; margin-left: 10px; color:#ccc;">Kanal Adı</span>
             </div>
             
             <div style="display:flex; align-items:center; gap:15px;">
@@ -202,9 +207,27 @@
             </div>
         </div>
 
-        <!-- YENİ: Çift Tıklama Etkinliği Eklendi (ondblclick) -->
+        <!-- CİHAZDA OYNATIRKEN GÖRÜNEN VİDEO EKRANI -->
         <video id="localPlayer" controls style="width:100%; aspect-ratio: 16/9; background:#000; outline: none;" ondblclick="toggleFullScreen()"></video>
         
+        <!-- YENİ: TV'YE YANSITIRKEN GÖRÜNEN KUMANDA EKRANI (Varsayılan gizli) -->
+        <div id="castRemote" style="display:none; width:100%; aspect-ratio: 16/9; background: radial-gradient(circle, #1a1c23 0%, #0a0a0c 100%); flex-direction:column; align-items:center; justify-content:center; position:relative;" ondblclick="toggleFullScreen()">
+            
+            <i class="material-icons-round" style="font-size: 50px; color: var(--primary); margin-bottom: 15px; opacity: 0.8;">cast_connected</i>
+            
+            <p style="margin: 0; font-size: 0.9rem; color: #aaa; text-transform: uppercase; letter-spacing: 2px;">TV'de Oynatılıyor</p>
+            <h2 id="castRemoteTitle" style="margin: 5px 0 30px 0; font-weight: 500; font-size: 1.8rem; text-align:center; padding: 0 20px; color: white;">Kanal Adı</h2>
+            
+            <div style="display:flex; gap: 40px; align-items: center;">
+                <div class="remote-btn" onclick="prevCh()" title="Önceki Kanal">
+                    <i class="material-icons-round" style="font-size:36px;">skip_previous</i>
+                </div>
+                <div class="remote-btn" onclick="nextCh()" title="Sonraki Kanal">
+                    <i class="material-icons-round" style="font-size:36px;">skip_next</i>
+                </div>
+            </div>
+        </div>
+
         <!-- Gizli Kanal Listesi -->
         <div id="overlayList" class="overlay-list">
             <!-- JS ile doldurulacak -->
@@ -246,24 +269,14 @@
         document.getElementById('overlayList').classList.toggle('open');
     }
 
-    // YENİ: Tam Ekran Yönetimi
     function toggleFullScreen() {
         const container = document.getElementById('previewContainer');
-        
         if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-            // Tam ekrana geç
-            if (container.requestFullscreen) {
-                container.requestFullscreen();
-            } else if (container.webkitRequestFullscreen) { /* Safari */
-                container.webkitRequestFullscreen();
-            }
+            if (container.requestFullscreen) container.requestFullscreen();
+            else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
         } else {
-            // Tam ekrandan çık
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) { /* Safari */
-                document.webkitExitFullscreen();
-            }
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
         }
     }
 
@@ -287,17 +300,23 @@
             });
             const p = new cast.framework.RemotePlayer();
             const c = new cast.framework.RemotePlayerController(p);
+            
             c.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
                 const s = document.getElementById('connStatus');
                 const b = document.querySelector('.conn-box');
+                
                 if (p.isConnected) {
                     s.innerText = "TV'ye Bağlı"; s.style.color = "#2ecc71"; b.style.borderColor = "#2ecc71";
-                    
+                    // Bağlantı sağlandığında, cihazda açık olan bir yayın varsa TV'ye aktar
                     if(curIdx !== -1 && document.getElementById('previewContainer').style.display !== 'none') {
-                        play(curIdx);
+                        play(curIdx); 
                     }
                 } else {
                     s.innerText = "Bağlantı Yok"; s.style.color = "#aaa"; b.style.borderColor = "#6c5ce7";
+                    // TV bağlantısı koptuğunda oynatıcı açıksa kapat veya normale dön
+                    if (document.getElementById('castRemote').style.display === 'flex') {
+                        closePreview();
+                    }
                 }
             });
         }
@@ -439,7 +458,7 @@
         window.open(url, '_blank');
     }
 
-    // --- 6. OYNATMA VE CAST ---
+    // --- 6. OYNATMA VE CAST KONTROLÜ ---
     function play(idx) {
         if(idx < 0 || idx >= allChannels.length) return;
         curIdx = idx;
@@ -457,14 +476,30 @@
         const session = cast.framework.CastContext.getInstance().getCurrentSession();
         
         if (!session) {
+            // TV'ye bağlı değil, cihazda oynat (VİDEO MODU)
             document.getElementById('pStatus').innerText = "Cihazda Oynatılıyor";
             playLocally(ch.url);
             return;
         }
 
+        // TV'ye bağlı (KUMANDA MODU)
         document.getElementById('pStatus').innerText = "TV'ye Bağlanıyor...";
-        closePreview(); 
+        
+        // Yerel video oynatıcıyı durdur ve gizle, Kumanda ekranını göster
+        if (hls) { hls.destroy(); hls = null; }
+        document.getElementById('localPlayer').pause();
+        document.getElementById('localPlayer').style.display = 'none';
+        document.getElementById('castRemote').style.display = 'flex';
+        document.getElementById('castRemoteTitle').innerText = ch.name;
+        
+        const container = document.getElementById('previewContainer');
+        container.style.display = 'flex'; 
+        container.style.flexDirection = 'column';
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            container.scrollIntoView({behavior: "smooth", block: "start"});
+        }
 
+        // Medyayı TV'ye gönder
         const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl');
         media.metadata = new chrome.cast.media.GenericMediaMetadata();
         media.metadata.title = ch.name;
@@ -482,7 +517,12 @@
     function playLocally(url) {
         const video = document.getElementById('localPlayer');
         const container = document.getElementById('previewContainer');
-        container.style.display = 'flex'; // Tam ekran düzeni için artık 'flex' kullanıyoruz
+        
+        // TV Kumandasını gizle, Video oynatıcıyı göster
+        document.getElementById('castRemote').style.display = 'none';
+        video.style.display = 'block';
+        
+        container.style.display = 'flex';
         container.style.flexDirection = 'column';
         
         if (!document.fullscreenElement && !document.webkitFullscreenElement) {
@@ -507,7 +547,6 @@
         const video = document.getElementById('localPlayer');
         const container = document.getElementById('previewContainer');
         
-        // Eğer tam ekrandaysa, çıkış yap
         if (document.fullscreenElement || document.webkitFullscreenElement) {
             if (document.exitFullscreen) document.exitFullscreen();
             else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
@@ -520,7 +559,9 @@
         video.pause();
         video.removeAttribute('src');
         video.load();
+        
         container.style.display = 'none';
+        document.getElementById('castRemote').style.display = 'none';
         document.getElementById('overlayList').classList.remove('open');
         
         if (!cast.framework.CastContext.getInstance().getCurrentSession()) {
