@@ -8,6 +8,9 @@
     <title>TV Cast - Desktop Mode</title>
     
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    <!-- HLS.js Kütüphanesi Eklendi -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     
@@ -15,7 +18,6 @@
         /* --- TEMEL AYARLAR --- */
         :root { --bg: #0f1014; --panel: #18191d; --surface: #23242a; --primary: #6c5ce7; --text: #fff; --border: #2d2e36; --red: #e74c3c; }
         
-        /* BODY AYARINA MİNİMUM GENİŞLİK EKLENDİ */
         body { 
             font-family: 'Inter', sans-serif; 
             background: var(--bg); 
@@ -24,7 +26,7 @@
             display: flex; 
             height: 100vh; 
             overflow: hidden; 
-            min-width: 1024px; /* Zorla Geniş Tut */
+            min-width: 1024px; 
         }
 
         /* --- SOL PANEL --- */
@@ -67,15 +69,12 @@
         /* --- PLAYER BAR --- */
         .player-bar { position: fixed; bottom: 20px; left: 420px; right: 20px; height: 70px; background: rgba(35,36,42,0.95); border-radius: 20px; display: flex; align-items: center; justify-content: center; z-index: 100; pointer-events: none; opacity: 0; transition: 0.3s; }
         .player-bar.show { opacity: 1; }
-
-        /* MOBİL RESPONSIVE KODLARI (MEDIA QUERY) TAMAMEN SİLİNDİ! */
-        /* Artık ekran küçülse de yan yana durmaya zorlanacak */
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <div style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+    <div class="conn-box" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <div>
             <h3 style="margin:0; font-size:1rem;">TV Cast</h3>
             <span id="connStatus" style="font-size:0.8rem; color:#aaa;">Bağlantı Bekleniyor...</span>
@@ -151,6 +150,16 @@
 </div>
 
 <div class="content">
+    
+    <!-- YENİ EKLENEN ÖNİZLEME OYNATICISI -->
+    <div id="previewContainer" style="display:none; width:100%; max-width: 800px; margin: 0 auto 20px auto; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border);">
+        <div style="background: rgba(255,255,255,0.05); padding: 10px; font-size: 0.8rem; color: #aaa; text-align: center; border-bottom: 1px solid var(--border);">
+            <i class="material-icons-round" style="font-size: 14px; vertical-align: middle;">visibility</i> Cihazda Önizleme Yapılıyor
+            <span onclick="closePreview()" style="float: right; color: var(--red); cursor: pointer;"><i class="material-icons-round" style="font-size: 16px;">close</i></span>
+        </div>
+        <video id="localPlayer" controls style="width:100%; aspect-ratio: 16/9; background:#000; outline: none;"></video>
+    </div>
+
     <div id="grid" class="grid">
         <div style="grid-column:1/-1; height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#333;">
             <i class="material-icons-round" style="font-size:80px;">downloading</i>
@@ -185,6 +194,7 @@
     // --- 2. TEMEL DEĞİŞKENLER ---
     let allChannels = [];
     let curIdx = -1;
+    let hls = null; // Yerel oynatıcı için HLS değişkeni
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
 
     // --- 3. BAŞLANGIÇ ---
@@ -240,17 +250,11 @@
 
         // 2. Gist Dedektifi (Domain Değiştirme ve Raw Yapma)
         if (val.includes('gist.github.com')) {
-            // .js uzantısını sil
             val = val.replace('.js', '');
-            
-            // Domaini değiştir (Redirect sorununu çözer)
             val = val.replace('gist.github.com', 'gist.githubusercontent.com');
-            
-            // Sonuna /raw ekle (Eğer yoksa)
             if (!val.endsWith('/raw')) {
                 val = val + '/raw';
             }
-            
             loadUrl(val, "Gist İndiriliyor...");
             return;
         }
@@ -264,7 +268,6 @@
         const stat = document.getElementById('status');
         stat.innerText = "İndiriliyor...";
         
-        // GitHub Raw Düzeltmesi (Gist dışı standart repolar için)
         if(url.includes('github.com') && !url.includes('gist') && !url.includes('raw') && !url.includes('user')) {
             url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
         }
@@ -290,7 +293,6 @@
         for (let line of lines) {
             line = line.trim();
             if(!line) continue;
-            // HTML veya Script artıklarını atla
             if(line.includes('document.write') || line.includes('<') || line.includes('{')) continue;
 
             if (line.startsWith("#EXTINF")) {
@@ -354,6 +356,7 @@
         window.open(url, '_blank');
     }
 
+    // --- 6. OYNATMA VE CAST MANTIGI ---
     function play(idx) {
         if(idx < 0 || idx >= allChannels.length) return;
         curIdx = idx;
@@ -363,13 +366,20 @@
         document.getElementById(`c-${idx}`)?.scrollIntoView({behavior:'smooth', block:'center'});
         
         document.getElementById('pTitle').innerText = ch.name;
-        document.getElementById('pStatus').innerText = "Bağlanıyor...";
 
+        // CAST OTURUMUNU KONTROL ET
         const session = cast.framework.CastContext.getInstance().getCurrentSession();
+        
         if (!session) {
-            document.getElementById('pStatus').innerText = "TV Bağlı Değil";
+            // TV'YE BAĞLI DEĞİLSE YEREL CİHAZDA OYNAT
+            document.getElementById('pStatus').innerText = "Cihazda Oynatılıyor";
+            playLocally(ch.url);
             return;
         }
+
+        // TV'YE BAĞLIYSA CAST ET
+        document.getElementById('pStatus').innerText = "TV'ye Bağlanıyor...";
+        closePreview(); // TV'ye geçince yerel oynatıcıyı kapat
 
         const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl');
         media.metadata = new chrome.cast.media.GenericMediaMetadata();
@@ -380,9 +390,53 @@
         req.autoplay = true;
 
         session.loadMedia(req).then(
-            () => document.getElementById('pStatus').innerText = "Oynatılıyor",
+            () => document.getElementById('pStatus').innerText = "TV'de Oynatılıyor",
             () => document.getElementById('pStatus').innerText = "Hata"
         );
+    }
+
+    function playLocally(url) {
+        const video = document.getElementById('localPlayer');
+        const container = document.getElementById('previewContainer');
+        container.style.display = 'block';
+
+        if (hls) {
+            hls.destroy();
+        }
+
+        if (Hls.isSupported()) {
+            hls = new Hls();
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                video.play();
+            });
+        } 
+        // Safari (iOS/macOS) HLS'yi doğal olarak destekler
+        else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = url;
+            video.addEventListener('loadedmetadata', function() {
+                video.play();
+            });
+        }
+    }
+
+    function closePreview() {
+        const video = document.getElementById('localPlayer');
+        const container = document.getElementById('previewContainer');
+        
+        if (hls) {
+            hls.destroy();
+            hls = null;
+        }
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        container.style.display = 'none';
+        
+        if (!cast.framework.CastContext.getInstance().getCurrentSession()) {
+            document.getElementById('pStatus').innerText = "Hazır";
+        }
     }
 
     function nextCh() { if(allChannels.length) play(curIdx+1 >= allChannels.length ? 0 : curIdx+1); }
@@ -391,4 +445,5 @@
 </script>
 
 </body>
-                </html>
+</html>
+    
