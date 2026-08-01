@@ -210,7 +210,6 @@
     <div id="overlayBackdrop" class="overlay-backdrop" onclick="closeAllDrawers()"></div>
 </div>
 
-<!-- SOL ÇEKMECE: AYARLAR -->
 <div id="leftSidebar" class="drawer">
     <div class="drawer-header">
         <span style="color: white; font-weight: 600; font-size: 1.1rem;">Ayarlar</span>
@@ -219,7 +218,6 @@
     
     <div class="settings-content">
 
-        <!-- CAST KUTUSU -->
         <div id="castBox" onclick="triggerCustomCast()" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s; cursor: pointer;">
             <div>
                 <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
@@ -228,7 +226,6 @@
             <i class="material-icons-round" id="customCastIcon" style="color: var(--primary); font-size: 28px;">cast</i>
         </div>
         
-        <!-- ÇİFT EKRAN (DUAL PLAY) -->
         <div id="dualPlayContainer" style="display: none; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px;">
             <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
             <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px;">Kapalı</button>
@@ -258,7 +255,6 @@
             </div>
         </div>
 
-        <!-- TEKİL KANAL EKLE (YOUTUBE PROXY DESTEKLİ) -->
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-single')">
                 <p class="module-title" style="color:var(--fav);">Tekil Kanal Ekle (Özel)</p>
@@ -274,7 +270,7 @@
                 <input type="text" id="singleLogo" placeholder="Logo Linki (İsteğe bağlı)" style="margin-top:10px;">
                 <button class="btn" style="width:100%; margin-top:10px; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Kalıcı Olarak Ekle</button>
                 <div style="font-size:0.7rem; color:#aaa; margin-top:10px; line-height: 1.4;">
-                    <b>Bilgi:</b> Ham <b>.m3u8</b> veya canlı <b>YouTube</b> linklerini ekleyebilirsiniz. YouTube linkleri otomatik olarak Cast destekli m3u8 formatına çevrilecektir.
+                    <b>Bilgi:</b> Ham <b>.m3u8</b> veya canlı <b>YouTube</b> linklerini ekleyebilirsiniz. Özel eklenen kanallar için bağlantı hata toleransı (5 sn) artırılmıştır.
                 </div>
             </div>
         </div>
@@ -309,7 +305,6 @@
     </div>
 </div>
 
-<!-- SAĞ ÇEKMECE: KANAL LİSTESİ -->
 <div id="rightSidebar" class="drawer">
     <div class="drawer-header">
         <span style="color: white; font-weight: 600; font-size: 1.1rem;" id="listCountTitle">Kanallar</span>
@@ -403,7 +398,6 @@
         
         if(!name || !url) { alert("Lütfen kanal adı ve yayın linkini girin."); return; }
         
-        // --- YOUTUBE PROXY BÖLÜMÜ ---
         if(url.includes('youtube.com') || url.includes('youtu.be')) {
             let videoId = null;
             if (url.includes("youtu.be/")) {
@@ -417,7 +411,7 @@
             
             if(videoId) {
                 url = `https://yt.lemnoslife.com/noKey/playlist?videoId=${videoId}`;
-                alert("YouTube linki algılandı! TV Cast desteklemesi için arka planda otomatik olarak canlı yayın (.m3u8) formatına çevrildi.");
+                alert("YouTube linki algılandı! Özel kanal toleransı ile listeye ekleniyor.");
             } else {
                 alert("Hata: YouTube linkinden video ID'si çıkarılamadı.");
                 return;
@@ -568,13 +562,14 @@
         const btn = document.getElementById('scanBtn');
         const stat = document.getElementById('status');
         
+        let brokenCount = 0;
+        // Özel kanalları (ch_ex_) tarama testinden muaf tutuyoruz ki yanlışlıkla işaretlenmesinler
+        const toScan = allChannels.filter(c => !c.broken && !c.id.startsWith('ch_ex_'));
+        const batchSize = 5; 
+        
         btn.innerText = "Taramayı Durdur";
         btn.style.color = "var(--red)";
         btn.style.borderColor = "var(--red)";
-        
-        let brokenCount = 0;
-        const toScan = allChannels.filter(c => !c.broken);
-        const batchSize = 5; 
         
         for(let i=0; i<toScan.length; i+=batchSize) {
             if(signal.aborted) break;
@@ -732,8 +727,6 @@
         });
     }
 
-    function performSearch() { const term = document.getElementById('filterInput').value.toLowerCase(); const items = document.querySelectorAll('.channel-item'); items.forEach(item => { const name = item.querySelector('.name').innerText.toLowerCase(); item.style.display = name.includes(term) ? 'flex' : 'none'; }); }
-
     function handleStreamError(sessionToken) {
         if (sessionToken !== undefined && sessionToken !== currentPlaySession) return;
         if(isErrorHandling || curIdx === -1) return;
@@ -741,14 +734,20 @@
         if (ch.broken) return; 
 
         isErrorHandling = true; 
-        ch.broken = true; 
         
-        if (!brokenUrls.includes(ch.url)) {
-            brokenUrls.push(ch.url);
-            localStorage.setItem('tv_broken', JSON.stringify(brokenUrls));
-        }
+        // ÖZEL KANAL MANTIĞI: ch_ex_ ile başlayan özel kanallar için daha fazla bekle ve kara listeye alma
+        const isCustom = ch.id.startsWith('ch_ex_');
+        const waitTime = isCustom ? 5000 : 1500; 
 
-        showOSD("Yayın Alınamadı", "1.5 sn içinde atlanıyor..."); 
+        if (!isCustom) {
+            ch.broken = true; 
+            if (!brokenUrls.includes(ch.url)) {
+                brokenUrls.push(ch.url);
+                localStorage.setItem('tv_broken', JSON.stringify(brokenUrls));
+            }
+        }
+        
+        showOSD("Yayın Alınamadı", isCustom ? `Özel kanal yanıt vermiyor, ${waitTime/1000} sn içinde atlanıyor...` : "1.5 sn içinde atlanıyor..."); 
         document.getElementById('pStatus').innerText = "Atlanıyor";
         
         const dir = (autoPlayDirection === -1) ? -1 : 1; 
@@ -769,7 +768,7 @@
                 const newNextIdx = allChannels.findIndex(c => c.id === nextIdToPlay);
                 if (newNextIdx !== -1) play(newNextIdx, dir);
             } else { showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); }
-        }, 1500);
+        }, waitTime);
     }
 
     function play(idx, dir = 0) {
@@ -803,7 +802,13 @@
         if (hls) { hls.destroy(); hls = null; }
         
         if (Hls.isSupported()) {
-            hls = new Hls(); 
+            // HLS YÜKLEME SÜRELERİ ARTIRILDI (10 Saniye)
+            hls = new Hls({
+                manifestLoadingTimeOut: 10000,
+                manifestLoadingMaxRetry: 3,
+                levelLoadingTimeOut: 10000,
+                levelLoadingMaxRetry: 3
+            }); 
             hls.on(Hls.Events.ERROR, function (event, data) { 
                 if (data.fatal) { 
                     switch (data.type) { 
