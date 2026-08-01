@@ -203,7 +203,6 @@
         <i class="material-icons-round" onclick="closeAllDrawers()" style="color: var(--red); cursor: pointer; font-size: 24px;">close</i>
     </div>
     
-    <!-- YENİ: ARAMA ÇUBUĞU VE KARANTİNAYI SIFIRLAMA BUTONU -->
     <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px;">
         <input type="text" id="filterInput" placeholder="Kanal ara..." onkeyup="performSearch()" style="flex: 1; padding: 8px; font-size: 0.85rem; margin: 0;">
         <button class="btn-icon" onclick="resetQuarantine()" title="Karantinayı Temizle (Listeyi Orijinal Sırasına Döndür)" style="padding: 0 10px; margin: 0; background: #3d3e46; display: flex; align-items: center; justify-content: center;">
@@ -226,7 +225,6 @@
     let isErrorHandling = false;
     let globalIdCounter = Date.now();
     
-    // YENİ: Bozuk kanalların kalıcı hafızaya alınması
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
     let customChannelsData = JSON.parse(localStorage.getItem('tv_custom')) || []; 
@@ -236,7 +234,6 @@
     window.addEventListener('DOMContentLoaded', () => {
         if (customChannelsData.length > 0) {
             allChannels = customChannelsData;
-            // Listeyi yüklerken kalıcı karantina listesine (brokenUrls) bakarak kanalları işaretle
             allChannels.forEach(c => { c.broken = brokenUrls.includes(c.url); }); 
             sortAndRenderList();
             document.getElementById('status').innerText = "Kayıtlı Özel Liste Yüklendi";
@@ -249,7 +246,12 @@
         vid.addEventListener('play', () => document.getElementById('playIcon').innerText = 'pause');
         vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow');
         vid.addEventListener('playing', () => document.getElementById('playIcon').innerText = 'pause');
-        vid.addEventListener('error', handleStreamError); 
+        
+        // Hata yakalayıcının sahte sinyalleri yakalamasını önlüyoruz
+        vid.addEventListener('error', () => {
+            if (!vid.currentSrc || vid.currentSrc === window.location.href) return;
+            handleStreamError(); 
+        }); 
     });
 
     // --- ARAYÜZ KONTROLLERİ ---
@@ -294,26 +296,18 @@
     function togglePlayPause() { if (remotePlayer && remotePlayer.isConnected) { remoteController.playOrPause(); if (isDualPlayActive) { const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); } } else { const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); } }
 
     // --- LİSTE VE HAFIZA İŞLEMLERİ ---
-    
-    // YENİ: Listeyi ilk haline (Karantinasız) Döndürme
     function resetQuarantine() {
         if(confirm("Karantinaya alınan tüm bozuk kanalları tekrar listeye dahil edip sıralamayı ilk haline döndürmek istediğinize emin misiniz?")) {
-            brokenUrls = [];
-            localStorage.removeItem('tv_broken');
-            allChannels.forEach(c => c.broken = false);
-            sortAndRenderList();
-            showOSD("Karantina Temizlendi", "Liste orijinal sırasına döndü");
+            brokenUrls = []; localStorage.removeItem('tv_broken'); allChannels.forEach(c => c.broken = false);
+            sortAndRenderList(); showOSD("Karantina Temizlendi", "Liste orijinal sırasına döndü");
         }
     }
     
-    // GÜNCELLENDİ: Onaylı ve tam temizlik yapan Varsayılana Dön
     function resetToDefault() { 
         if(confirm("Tüm özel listeleri, favorileri ve karantinayı tamamen silip varsayılan TR listesine dönmek istediğinize emin misiniz?")) {
             customChannelsData = []; favUrls = []; brokenUrls = [];
             localStorage.removeItem('tv_custom'); localStorage.removeItem('tv_favorites'); localStorage.removeItem('tv_broken');
-            document.getElementById('countrySelect').value = "tr"; 
-            loadUrl(DEFAULT_LIST, "Varsayılan TR Listesine Dönüldü!"); 
-            closeAllDrawers(); 
+            document.getElementById('countrySelect').value = "tr"; loadUrl(DEFAULT_LIST, "Varsayılan TR Listesine Dönüldü!"); closeAllDrawers(); 
         }
     }
 
@@ -372,7 +366,7 @@
 
     function performSearch() { const term = document.getElementById('filterInput').value.toLowerCase(); const items = document.querySelectorAll('.channel-item'); items.forEach(item => { const name = item.querySelector('.name').innerText.toLowerCase(); item.style.display = name.includes(term) ? 'flex' : 'none'; }); }
 
-    // GÜNCELLENDİ: Anında Atlama ve Karantina Hafızası Kaydı
+    // GÜNCELLENDİ: Anında Atlama ve Domino Etkisini Kırma
     function handleStreamError() {
         if(isErrorHandling || curIdx === -1) return;
         const ch = allChannels[curIdx];
@@ -381,7 +375,6 @@
         isErrorHandling = true; 
         ch.broken = true; 
         
-        // Kanalı kalıcı hafızaya bozuk olarak kaydet
         if (!brokenUrls.includes(ch.url)) {
             brokenUrls.push(ch.url);
             localStorage.setItem('tv_broken', JSON.stringify(brokenUrls));
@@ -404,14 +397,18 @@
         // Listeyi anında sırala
         sortAndRenderList(); 
         
-        // Timeout beklemesi TAMAMEN KALDIRILDI. Anında yeni kanala atlıyor!
-        isErrorHandling = false; 
+        // Anında oynat (Gecikme sıfır!)
         if (attempts < allChannels.length) {
             const newNextIdx = allChannels.findIndex(c => c.id === nextIdToPlay);
             if (newNextIdx !== -1) play(newNextIdx, dir);
         } else { 
             showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); 
         }
+
+        // Domino etkisini kırmak için sistemi yarım saniye (500ms) "sağır" bırak
+        setTimeout(() => {
+            isErrorHandling = false;
+        }, 500);
     }
 
     function play(idx, dir = 0) {
