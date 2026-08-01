@@ -105,6 +105,9 @@
         /* --- OSD --- */
         .osd-title { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 1.2rem; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center;}
         .osd-title.show { opacity: 1; }
+        
+        /* Cast Butonu Renk Ayarı */
+        google-cast-launcher { --connected-color: #2ecc71; --disconnected-color: white; cursor: pointer; width: 30px; height: 30px; }
 
         @media (max-width: 768px) {
             #leftSidebar, #rightSidebar { width: 85%; }
@@ -135,7 +138,6 @@
                 <span id="previewTitle">Kanal Seçin</span>
                 <span id="pStatus" class="status-badge">Hazır</span>
             </div>
-            <!-- Ana ekrandaki Google butonu kaldırıldı. Tamamen menüden manuel kontrol edilecek. -->
         </div>
         
         <div class="center-buttons">
@@ -163,25 +165,20 @@
     
     <div class="settings-content">
 
-        <!-- YENİ: KENDİ YAZDIĞIMIZ %100 ÇALIŞAN CAST BUTONU -->
-        <div class="module">
-            <div class="module-header" onclick="toggleModule('mod-cast')">
-                <p class="module-title">TV'ye Yansıt (Cast)</p>
-                <i class="material-icons-round icon-state">expand_more</i>
+        <!-- KULLANICININ İSTEDİĞİ MASAÜSTÜ CAST KUTUSU -->
+        <div id="castBox" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s;">
+            <div>
+                <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
+                <span id="connStatus" style="font-size:0.8rem; color:#aaa;">Bağlantı Bekleniyor...</span>
             </div>
-            <div id="mod-cast" class="module-body" style="display:block;">
-                
-                <!-- Orijinal google bileşenini değil, tıklanabilir kendi div'imizi kullanıyoruz -->
-                <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);" onclick="startCastSession()">
-                    <span style="font-size: 0.85rem; font-weight: 500;" id="castMenuText">Cihaz Ara & Bağlan</span>
-                    <i class="material-icons-round" id="customCastIcon" style="font-size: 24px; color: white;">cast</i>
-                </div>
-                
-                <div id="dualPlayContainer" style="display: none; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                    <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
-                    <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent;">Kapalı</button>
-                </div>
-            </div>
+            <!-- Orijinal google bileşenini buraya koyuyoruz -->
+            <google-cast-launcher></google-cast-launcher>
+        </div>
+        
+        <!-- ÇİFT EKRAN (DUAL PLAY) MODÜLÜ (Bağlanınca görünür) -->
+        <div id="dualPlayContainer" style="display: none; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px;">
+            <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
+            <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px;">Kapalı</button>
         </div>
 
         <div class="module">
@@ -312,31 +309,7 @@
         if(curIdx === -1) return; const ch = allChannels[curIdx]; toggleFavorite(new Event('click'), ch.id); updateMainFavBtn(); showOSD(ch.isFavorite ? "Favorilere Eklendi" : "Favorilerden Çıkarıldı", ch.name);
     }
 
-    // --- KENDİ YAZDIĞIMIZ MANUEL CAST BAŞLATICI ---
-    function startCastSession() {
-        if (typeof cast === 'undefined' || !cast.framework) {
-            showOSD("Uyarı", "Yansıtma motoru henüz yüklenmedi veya desteklenmiyor.");
-            return;
-        }
-        
-        const context = cast.framework.CastContext.getInstance();
-        
-        // Eğer zaten bağlıysa, bağlantıyı kesmek isteyip istemediğini sor
-        if (context.getCurrentSession()) {
-            if(confirm("TV bağlantısını kesmek istiyor musunuz?")) {
-                context.endCurrentSession(true);
-            }
-        } else {
-            // Bağlı değilse, o meşhur cihaz bulma penceresini manuel olarak tetikle
-            context.requestSession().then(() => {
-                closeAllDrawers();
-            }).catch((err) => {
-                console.log('Bağlantı iptal edildi veya hata oluştu.', err);
-            });
-        }
-    }
-
-    // --- CAST MOTORU VE DİNLEYİCİLERİ ---
+    // --- CAST MOTORU VE UI KONTROLLERİ ---
     window['__onGCastApiAvailable'] = function(isAvailable) {
         if (isAvailable) {
             cast.framework.CastContext.getInstance().setOptions({ 
@@ -349,25 +322,30 @@
             remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
                 const dpCont = document.getElementById('dualPlayContainer');
                 const dpBtn = document.getElementById('dualPlayToggleBtn');
-                const cIcon = document.getElementById('customCastIcon');
-                const cText = document.getElementById('castMenuText');
+                
+                // MASAÜSTÜ TASARIMI UI GÜNCELLEMELERİ
+                const connStatus = document.getElementById('connStatus');
+                const castBox = document.getElementById('castBox');
                 
                 if (remotePlayer.isConnected) { 
-                    // BAĞLANDI DURUMU
+                    // BAĞLANDI
                     document.getElementById('pStatus').innerText = "TV'ye Bağlı"; 
+                    
+                    connStatus.innerText = "TV'ye Bağlı";
+                    connStatus.style.color = "#2ecc71";
+                    castBox.style.borderColor = "#2ecc71";
+                    
                     dpCont.style.display = 'flex'; 
-                    
-                    if(cIcon) { cIcon.innerText = 'cast_connected'; cIcon.style.color = 'var(--primary)'; }
-                    if(cText) { cText.innerText = 'Bağlantıyı Kes'; }
-                    
                     if(curIdx !== -1) play(curIdx, 0); 
                 } else { 
-                    // BAĞLANTI KOPTU VEYA YOK
+                    // BAĞLANTI KOPTU
                     document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; 
-                    dpCont.style.display = 'none'; 
                     
-                    if(cIcon) { cIcon.innerText = 'cast'; cIcon.style.color = 'white'; }
-                    if(cText) { cText.innerText = 'Cihaz Ara & Bağlan'; }
+                    connStatus.innerText = "Bağlantı Bekleniyor...";
+                    connStatus.style.color = "#aaa";
+                    castBox.style.borderColor = "var(--primary)";
+                    
+                    dpCont.style.display = 'none'; 
                     
                     isDualPlayActive = false; 
                     dpBtn.innerText = "Kapalı";
