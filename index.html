@@ -106,8 +106,8 @@
         .osd-title { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 1.2rem; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center;}
         .osd-title.show { opacity: 1; }
         
-        /* Cast Butonu Renk Ayarı */
-        google-cast-launcher { --connected-color: #2ecc71; --disconnected-color: white; width: 30px; height: 30px; }
+        /* Orijinal Cast Butonu Renk ve Boyut Ayarı */
+        google-cast-launcher { --connected-color: #2ecc71; --disconnected-color: white; width: 35px; height: 35px; cursor: pointer; }
 
         @media (max-width: 768px) {
             #leftSidebar, #rightSidebar { width: 85%; }
@@ -165,14 +165,13 @@
     
     <div class="settings-content">
 
-        <!-- KUTUNUN TAMAMI TIKLANABİLİR HALE GETİRİLDİ (onclick eklendi) -->
-        <div id="castBox" onclick="triggerCast()" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s; cursor: pointer;">
+        <!-- DOKUNULMAMIŞ, SAF GOOGLE CAST BİLEŞENİ (Hiçbir aracı kod veya onclick yok!) -->
+        <div id="castBox" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s;">
             <div>
                 <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
                 <span id="connStatus" style="font-size:0.8rem; color:#aaa;">Bağlantı Bekleniyor...</span>
             </div>
-            <!-- İkona tıklamayı iptal edip, tıklamayı ana kutuya (castBox) devrediyoruz -->
-            <google-cast-launcher style="pointer-events: none;"></google-cast-launcher>
+            <google-cast-launcher></google-cast-launcher>
         </div>
         
         <!-- ÇİFT EKRAN (DUAL PLAY) MODÜLÜ -->
@@ -307,28 +306,6 @@
 
     function toggleMainFavorite() {
         if(curIdx === -1) return; const ch = allChannels[curIdx]; toggleFavorite(new Event('click'), ch.id); updateMainFavBtn(); showOSD(ch.isFavorite ? "Favorilere Eklendi" : "Favorilerden Çıkarıldı", ch.name);
-    }
-
-    // --- KUTUYA TIKLAYINCA ÇALIŞAN MANUEL ARAMA FONKSİYONU ---
-    function triggerCast() {
-        if (typeof cast === 'undefined' || !cast.framework) {
-            alert("Yansıtma motoru henüz yüklenmedi veya tarayıcınız (Safari vb.) yerleşik yansıtmayı desteklemiyor. Lütfen Chrome kullanın.");
-            return;
-        }
-        
-        const context = cast.framework.CastContext.getInstance();
-        
-        if (context.getCurrentSession()) {
-            if (confirm("TV bağlantısını kesmek istiyor musunuz?")) {
-                context.endCurrentSession(true);
-            }
-        } else {
-            context.requestSession().then(() => {
-                closeAllDrawers();
-            }).catch((err) => {
-                console.log('Bağlantı iptal edildi veya hata oluştu.', err);
-            });
-        }
     }
 
     // --- CAST MOTORU VE UI KONTROLLERİ ---
