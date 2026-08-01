@@ -7,7 +7,6 @@
     <meta name="theme-color" content="#000000">
     <title>TV Cast - Smart Player OS</title>
     
-    <!-- Cast SDK'sını buradan kaldırdık, sayfanın en altına (kodların sonuna) taşıdık -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
@@ -107,7 +106,6 @@
         .osd-title { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 1.2rem; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center;}
         .osd-title.show { opacity: 1; }
         
-        /* Cast Butonu Renk Ayarı (Görünürlük için çok önemli) */
         google-cast-launcher { --connected-color: #6c5ce7; --disconnected-color: white; }
 
         @media (max-width: 768px) {
@@ -139,11 +137,7 @@
                 <span id="previewTitle">Kanal Seçin</span>
                 <span id="pStatus" class="status-badge">Hazır</span>
             </div>
-            
-            <div style="pointer-events: auto; display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
-                <i id="dualPlayBtn" class="material-icons-round" onclick="toggleDualPlay()" style="font-size: 22px; cursor: pointer; color: rgba(255,255,255,0.4); display: none;" title="Cihazda da Oynat">smartphone</i>
-                <google-cast-launcher style="width: 24px; height: 24px; cursor: pointer; display: inline-block;"></google-cast-launcher>
-            </div>
+            <!-- Cast butonu ana ekrandan tamamen kaldırıldı. -->
         </div>
         
         <div class="center-buttons">
@@ -165,11 +159,32 @@
 <!-- SOL ÇEKMECE: AYARLAR -->
 <div id="leftSidebar" class="drawer">
     <div class="drawer-header">
-        <span style="color: white; font-weight: 600; font-size: 1.1rem;">Ayarlar & Yükleme</span>
+        <span style="color: white; font-weight: 600; font-size: 1.1rem;">Ayarlar</span>
         <i class="material-icons-round" onclick="closeAllDrawers()" style="color: var(--red); cursor: pointer; font-size: 24px;">close</i>
     </div>
     
     <div class="settings-content">
+
+        <!-- YENİ: TV'YE YANSIT (CAST) MODÜLÜ -->
+        <div class="module">
+            <div class="module-header" onclick="toggleModule('mod-cast')">
+                <p class="module-title">TV'ye Yansıt (Cast)</p>
+                <i class="material-icons-round icon-state">expand_more</i>
+            </div>
+            <div id="mod-cast" class="module-body" style="display:block;">
+                <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 8px; margin-bottom: 10px;">
+                    <span style="font-size: 0.85rem; font-weight: 500;">Cihaz Ara & Bağlan</span>
+                    <google-cast-launcher style="width: 28px; height: 28px; cursor: pointer;"></google-cast-launcher>
+                </div>
+                
+                <!-- Sadece TV'ye bağlanıldığında görünecek Çift Ekran (Dual Play) kontrolü -->
+                <div id="dualPlayContainer" style="display: none; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 8px;">
+                    <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
+                    <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent;">Kapalı</button>
+                </div>
+            </div>
+        </div>
+
         <div class="module">
             <div class="module-header" style="cursor:default;">
                 <p class="module-title" style="color:white;">Hazır Listeler</p>
@@ -242,9 +257,7 @@
     let subtitlesActive = false;
     let autoPlayDirection = 1; 
     let isErrorHandling = false;
-    
     let currentPlaySession = 0; 
-    
     let globalIdCounter = Date.now();
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
@@ -300,7 +313,7 @@
         if(curIdx === -1) return; const ch = allChannels[curIdx]; toggleFavorite(new Event('click'), ch.id); updateMainFavBtn(); showOSD(ch.isFavorite ? "Favorilere Eklendi" : "Favorilerden Çıkarıldı", ch.name);
     }
 
-    // --- CAST (YANSITMA) TANIMLAMASI ---
+    // --- CAST (YANSITMA) VE DUAL PLAY KONTROLLERİ ---
     window['__onGCastApiAvailable'] = function(isAvailable) {
         if (isAvailable) {
             cast.framework.CastContext.getInstance().setOptions({ 
@@ -311,16 +324,22 @@
             remoteController = new cast.framework.RemotePlayerController(remotePlayer);
             
             remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
-                const dpBtn = document.getElementById('dualPlayBtn');
+                const dpCont = document.getElementById('dualPlayContainer');
+                const dpBtn = document.getElementById('dualPlayToggleBtn');
+                
                 if (remotePlayer.isConnected) { 
                     document.getElementById('pStatus').innerText = "TV'ye Bağlı"; 
-                    dpBtn.style.display = 'block'; 
+                    dpCont.style.display = 'flex'; // TV'ye bağlanınca cihazda oynat seçeneğini göster
                     if(curIdx !== -1) play(curIdx, 0); 
                 } else { 
                     document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; 
-                    dpBtn.style.display = 'none'; 
+                    dpCont.style.display = 'none'; // Bağlantı kopunca gizle
+                    
+                    // Dual Play modunu sıfırla
                     isDualPlayActive = false; 
-                    dpBtn.style.color = "rgba(255,255,255,0.4)"; 
+                    dpBtn.innerText = "Kapalı";
+                    dpBtn.style.background = "#3d3e46";
+                    
                     if(curIdx !== -1) play(curIdx, 0); 
                 }
             });
@@ -337,19 +356,23 @@
         }
     };
     
+    // YENİ: Özel Cihazda Oynat (Dual Play) Tetikleyicisi
     function toggleDualPlay() {
         isDualPlayActive = !isDualPlayActive;
-        const dpBtn = document.getElementById('dualPlayBtn');
+        const dpBtn = document.getElementById('dualPlayToggleBtn');
+        
         if (isDualPlayActive) {
-            dpBtn.style.color = "var(--primary)";
+            dpBtn.innerText = "Açık";
+            dpBtn.style.background = "var(--primary)";
             document.getElementById('pStatus').innerText = "Cihazda & TV'de İzleniyor";
             if (curIdx !== -1) playLocally(allChannels[curIdx].url, currentPlaySession);
         } else {
-            dpBtn.style.color = "rgba(255,255,255,0.4)";
+            dpBtn.innerText = "Kapalı";
+            dpBtn.style.background = "#3d3e46";
             document.getElementById('pStatus').innerText = "TV'de İzleniyor";
             stopLocally();
         }
-        showOSD(isDualPlayActive ? "Çift Ekran Açık" : "Sadece TV'de", isDualPlayActive ? "Hem telefonda hem TV'de oynatılacak" : "Telefon ekranı kapatıldı");
+        showOSD(isDualPlayActive ? "Çift Ekran Açık" : "Sadece TV'de", isDualPlayActive ? "Hem cihazda hem TV'de oynatılacak" : "Cihaz ekranı kapatıldı");
     }
 
     function togglePlayPause() { 
@@ -581,7 +604,6 @@
     function toggleSubtitles() { subtitlesActive = !subtitlesActive; const btn = document.getElementById('ccBtn'); if(subtitlesActive) btn.classList.add('active'); else btn.classList.remove('active'); const video = document.getElementById('localPlayer'); let foundTrack = false; for (let i = 0; i < video.textTracks.length; i++) { video.textTracks[i].mode = subtitlesActive ? 'showing' : 'hidden'; foundTrack = true; } showOSD("Altyazı " + (subtitlesActive ? "Açık" : "Kapalı"), foundTrack ? "Yayın destekliyorsa görünecek" : "Bu yayında gömülü altyazı yok"); }
 </script>
 
-<!-- Google Cast motoru BURAYA (sayfanın en sonuna) taşındı. Böylece komutlar eksiksiz okunmuş olacak. -->
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 
 </body>
