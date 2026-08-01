@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#000000">
     <title>TV Cast - Smart Player OS</title>
     
-    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+    <!-- Cast SDK'sını buradan kaldırdık, sayfanın en altına (kodların sonuna) taşıdık -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
@@ -107,7 +107,7 @@
         .osd-title { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 1.2rem; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center;}
         .osd-title.show { opacity: 1; }
         
-        /* Cast Butonu için Özel Renk (Standart gri ikonun görünür olması için) */
+        /* Cast Butonu Renk Ayarı (Görünürlük için çok önemli) */
         google-cast-launcher { --connected-color: #6c5ce7; --disconnected-color: white; }
 
         @media (max-width: 768px) {
@@ -139,7 +139,7 @@
                 <span id="previewTitle">Kanal Seçin</span>
                 <span id="pStatus" class="status-badge">Hazır</span>
             </div>
-            <!-- CAST BÖLÜMÜ GERİ GETİRİLDİ VE GÜÇLENDİRİLDİ -->
+            
             <div style="pointer-events: auto; display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
                 <i id="dualPlayBtn" class="material-icons-round" onclick="toggleDualPlay()" style="font-size: 22px; cursor: pointer; color: rgba(255,255,255,0.4); display: none;" title="Cihazda da Oynat">smartphone</i>
                 <google-cast-launcher style="width: 24px; height: 24px; cursor: pointer; display: inline-block;"></google-cast-launcher>
@@ -186,7 +186,6 @@
             </div>
         </div>
 
-        <!-- GITHUB ARAMA MODÜLÜ GERİ GETİRİLDİ -->
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-github')">
                 <p class="module-title">GitHub Gist'te Ara</p>
@@ -244,7 +243,7 @@
     let autoPlayDirection = 1; 
     let isErrorHandling = false;
     
-    let currentPlaySession = 0; // Sahte hata sinyallerini engellemek için seans takibi
+    let currentPlaySession = 0; 
     
     let globalIdCounter = Date.now();
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
@@ -252,17 +251,14 @@
     let customChannelsData = JSON.parse(localStorage.getItem('tv_custom')) || []; 
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
 
-    // --- BAŞLANGIÇ ---
     window.addEventListener('DOMContentLoaded', () => {
         if (customChannelsData.length > 0) {
             allChannels = customChannelsData;
-            
             allChannels.forEach((c, index) => {
                 if (!c.id) c.id = 'ch_' + (globalIdCounter++); 
                 if (c.originalIndex === undefined) c.originalIndex = index;
                 c.broken = brokenUrls.includes(c.url);
             });
-            
             sortAndRenderList();
             document.getElementById('status').innerText = "Kayıtlı Özel Liste Yüklendi";
         } else {
@@ -281,7 +277,6 @@
         }); 
     });
 
-    // --- ARAYÜZ KONTROLLERİ ---
     function openLeftSidebar() { document.getElementById('leftSidebar').classList.add('open'); document.getElementById('overlayBackdrop').classList.add('show'); document.getElementById('controlsOverlay').classList.add('hide'); }
     function openRightSidebar() { document.getElementById('rightSidebar').classList.add('open'); document.getElementById('overlayBackdrop').classList.add('show'); document.getElementById('controlsOverlay').classList.add('hide');
         if(curIdx !== -1) { const activeItem = document.getElementById(`c-${curIdx}`); if(activeItem) setTimeout(() => { document.getElementById('channelList').scrollTo({ top: activeItem.offsetTop - 100, behavior: 'smooth' }); }, 100); } }
@@ -305,7 +300,7 @@
         if(curIdx === -1) return; const ch = allChannels[curIdx]; toggleFavorite(new Event('click'), ch.id); updateMainFavBtn(); showOSD(ch.isFavorite ? "Favorilere Eklendi" : "Favorilerden Çıkarıldı", ch.name);
     }
 
-    // --- CAST (YANSITMA) KURULUMU VE FONKSİYONLARI ---
+    // --- CAST (YANSITMA) TANIMLAMASI ---
     window['__onGCastApiAvailable'] = function(isAvailable) {
         if (isAvailable) {
             cast.framework.CastContext.getInstance().setOptions({ 
@@ -366,7 +361,6 @@
         } 
     }
 
-    // --- GITHUB GIST ARAMA FONKSİYONU ---
     async function searchGithub() {
         const query = document.getElementById('ghSearchInput').value.trim();
         const resultsDiv = document.getElementById('ghResults');
@@ -410,7 +404,6 @@
         }
     }
 
-    // --- LİSTE VE HAFIZA İŞLEMLERİ ---
     function resetQuarantine() {
         if(confirm("Karantinaya alınan tüm bozuk kanalları tekrar listeye dahil edip sıralamayı ilk haline döndürmek istediğinize emin misiniz?")) {
             brokenUrls = []; localStorage.removeItem('tv_broken'); allChannels.forEach(c => c.broken = false);
@@ -481,7 +474,6 @@
 
     function performSearch() { const term = document.getElementById('filterInput').value.toLowerCase(); const items = document.querySelectorAll('.channel-item'); items.forEach(item => { const name = item.querySelector('.name').innerText.toLowerCase(); item.style.display = name.includes(term) ? 'flex' : 'none'; }); }
 
-    // --- 1.5 SANİYELİK BEKLEMELİ (STABİL) OTO-ATLAMA ---
     function handleStreamError(sessionToken) {
         if (sessionToken !== undefined && sessionToken !== currentPlaySession) return;
         
@@ -510,7 +502,6 @@
         } while (allChannels[nextIdx].broken && attempts < allChannels.length);
         
         const nextIdToPlay = allChannels[nextIdx].id; 
-        
         sortAndRenderList(); 
         
         setTimeout(() => {
@@ -589,6 +580,9 @@
     function prevCh() { moveToNextWorking(-1); }
     function toggleSubtitles() { subtitlesActive = !subtitlesActive; const btn = document.getElementById('ccBtn'); if(subtitlesActive) btn.classList.add('active'); else btn.classList.remove('active'); const video = document.getElementById('localPlayer'); let foundTrack = false; for (let i = 0; i < video.textTracks.length; i++) { video.textTracks[i].mode = subtitlesActive ? 'showing' : 'hidden'; foundTrack = true; } showOSD("Altyazı " + (subtitlesActive ? "Açık" : "Kapalı"), foundTrack ? "Yayın destekliyorsa görünecek" : "Bu yayında gömülü altyazı yok"); }
 </script>
+
+<!-- Google Cast motoru BURAYA (sayfanın en sonuna) taşındı. Böylece komutlar eksiksiz okunmuş olacak. -->
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 
 </body>
 </html>
