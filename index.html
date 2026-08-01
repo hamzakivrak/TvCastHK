@@ -251,7 +251,6 @@
                 <button id="removePresetBtn" class="btn" style="width:100%; margin-top:10px; background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red); display:none;" onclick="removeCurrentPreset()">Bu Özel Listeyi Sil</button>
                 <div id="status" style="font-size:0.75rem; text-align:center; margin-top:10px; color:#2ecc71;">Liste Bekleniyor...</div>
                 
-                <!-- YENİ: HEPSİNİ TARA BUTONU -->
                 <div class="btn-group" style="margin-top:10px;">
                     <button class="btn" id="scanBtn" style="background: rgba(241, 196, 15, 0.2); color: var(--fav); border-color: var(--fav);" onclick="scanAllChannels()">Hepsini Tara</button>
                     <button class="btn" style="background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red);" onclick="resetToDefault()">Varsayılana Dön</button>
@@ -259,9 +258,29 @@
             </div>
         </div>
 
+        <!-- TEKİL KANAL EKLE (YOUTUBE PROXY DESTEKLİ) -->
+        <div class="module">
+            <div class="module-header" onclick="toggleModule('mod-single')">
+                <p class="module-title" style="color:var(--fav);">Tekil Kanal Ekle (Özel)</p>
+                <i class="material-icons-round icon-state">expand_more</i>
+            </div>
+            <div id="mod-single" class="module-body" style="display:none; border-top-color: rgba(241, 196, 15, 0.3);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-size:0.7rem; color:var(--fav); font-weight:bold;">Tüm Listelere Sabitlenir</span>
+                    <span onclick="clearExtras()" style="color:var(--red); cursor:pointer; font-size:0.7rem; text-decoration:underline;">Tümünü Sil</span>
+                </div>
+                <input type="text" id="singleName" placeholder="Kanal Adı (Örn: Sözcü TV)">
+                <input type="text" id="singleUrl" placeholder="Yayın Linki (.m3u8 veya YouTube Linki)" style="margin-top:10px;">
+                <input type="text" id="singleLogo" placeholder="Logo Linki (İsteğe bağlı)" style="margin-top:10px;">
+                <button class="btn" style="width:100%; margin-top:10px; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Kalıcı Olarak Ekle</button>
+                <div style="font-size:0.7rem; color:#aaa; margin-top:10px; line-height: 1.4;">
+                    <b>Bilgi:</b> Ham <b>.m3u8</b> veya canlı <b>YouTube</b> linklerini ekleyebilirsiniz. YouTube linkleri otomatik olarak Cast destekli m3u8 formatına çevrilecektir.
+                </div>
+            </div>
+        </div>
+
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-github')">
-                <!-- İSİM DEĞİŞTİ -->
                 <p class="module-title">Web'de Liste Ara</p>
                 <i class="material-icons-round icon-state">expand_more</i>
             </div>
@@ -279,7 +298,6 @@
             </div>
             <div id="mod-manual" class="module-body" style="display:none;">
                 <textarea id="inputData" placeholder="Script kodunu veya Linki yapıştır..."></textarea>
-                <!-- YENİ: ÖZEL İSİM KUTUSU -->
                 <input type="text" id="presetName" placeholder="Hazır listeye kaydetmek için isim verin (İsteğe bağlı)" style="margin-top:10px; font-size:0.8rem; height:40px;">
                 <div class="btn-group">
                     <button class="btn" style="flex: 0.5;" onclick="pasteClip()"><i class="material-icons-round">content_paste</i></button>
@@ -322,9 +340,8 @@
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
     let customChannelsData = JSON.parse(localStorage.getItem('tv_custom')) || []; 
-    
-    // YENİ: KİŞİSEL HAZIR LİSTELER
     let personalPresets = JSON.parse(localStorage.getItem('tv_presets')) || [];
+    let extraChannels = JSON.parse(localStorage.getItem('tv_extras')) || [];
     
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
 
@@ -341,7 +358,6 @@
         }
     }
 
-    // YENİ: KİŞİSEL LİSTELERİ GÜNCELLE
     function updatePresetDropdown() {
         const grp = document.getElementById('personalPresets');
         grp.innerHTML = '';
@@ -370,6 +386,82 @@
         changeCountry();
     }
 
+    function injectExtraChannels() {
+        allChannels = allChannels.filter(c => !c.id.startsWith('ch_ex_'));
+        extraChannels.forEach((ex, idx) => {
+            const copy = {...ex};
+            copy.originalIndex = -1000 - idx; 
+            copy.broken = false; 
+            allChannels.unshift(copy);
+        });
+    }
+
+    function addSingleChannel() {
+        const name = document.getElementById('singleName').value.trim();
+        let url = document.getElementById('singleUrl').value.trim();
+        const logo = document.getElementById('singleLogo').value.trim();
+        
+        if(!name || !url) { alert("Lütfen kanal adı ve yayın linkini girin."); return; }
+        
+        // --- YOUTUBE PROXY BÖLÜMÜ ---
+        if(url.includes('youtube.com') || url.includes('youtu.be')) {
+            let videoId = null;
+            if (url.includes("youtu.be/")) {
+                videoId = url.split("youtu.be/")[1].split("?")[0];
+            } else if (url.includes("/live/")) {
+                videoId = url.split("/live/")[1].split("?")[0];
+            } else if (url.includes("v=")) {
+                const params = new URLSearchParams(url.substring(url.indexOf('?')));
+                videoId = params.get("v");
+            }
+            
+            if(videoId) {
+                url = `https://yt.lemnoslife.com/noKey/playlist?videoId=${videoId}`;
+                alert("YouTube linki algılandı! TV Cast desteklemesi için arka planda otomatik olarak canlı yayın (.m3u8) formatına çevrildi.");
+            } else {
+                alert("Hata: YouTube linkinden video ID'si çıkarılamadı.");
+                return;
+            }
+        } 
+        else if(!url.includes('.m3u8') && !url.includes('.mp4')) {
+            alert("Bilgi: Girdiğiniz link standart bir web sitesine veya desteklenmeyen formata benziyor. Çalışmayabilir.");
+        }
+
+        const newCh = {
+            id: 'ch_ex_' + Date.now(),
+            name: name,
+            url: url,
+            logo: logo,
+            isFavorite: true 
+        };
+        
+        extraChannels.push(newCh);
+        localStorage.setItem('tv_extras', JSON.stringify(extraChannels));
+        
+        if(!favUrls.includes(url)) {
+            favUrls.push(url);
+            localStorage.setItem('tv_favorites', JSON.stringify(favUrls));
+        }
+        
+        injectExtraChannels();
+        sortAndRenderList();
+        
+        document.getElementById('singleName').value = '';
+        document.getElementById('singleUrl').value = '';
+        document.getElementById('singleLogo').value = '';
+        showOSD("Kanal Eklendi", name + " listelerin en üstüne sabitlendi.");
+    }
+    
+    function clearExtras() {
+        if(confirm("Manuel eklediğiniz tüm tekil özel kanalları silmek istediğinize emin misiniz?")) {
+            extraChannels = [];
+            localStorage.removeItem('tv_extras');
+            allChannels = allChannels.filter(c => !c.id.startsWith('ch_ex_'));
+            sortAndRenderList();
+            showOSD("Temizlendi", "Özel kanallar silindi.");
+        }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
         updatePresetDropdown();
         
@@ -380,6 +472,7 @@
                 if (c.originalIndex === undefined) c.originalIndex = index;
                 c.broken = brokenUrls.includes(c.url);
             });
+            injectExtraChannels(); 
             sortAndRenderList();
             document.getElementById('status').innerText = "Kayıtlı Özel Liste Yüklendi";
         } else {
@@ -448,7 +541,6 @@
         } 
     }
 
-    // YENİ: WEB'DE LİSTE ARAMA MANTIĞI
     function doWebSearch() {
         let term = document.getElementById('ghSearchInput').value.trim();
         if(!term) term = "iptv list";
@@ -456,7 +548,6 @@
         window.open(url, '_blank');
     }
 
-    // YENİ: HEPSİNİ TARA MEKANİZMASI
     let isScanning = false;
     let scanController = new AbortController();
 
@@ -469,7 +560,7 @@
             return;
         }
         
-        if(!confirm("Tüm listeyi taramak kanal sayısına bağlı olarak birkaç dakika sürebilir. Bozuk olanlar otomatik olarak ayıklanacaktır. Başlamak istiyor musunuz?")) return;
+        if(!confirm("Tüm listeyi taramak kanal sayısına bağlı olarak birkaç dakika sürebilir. Bozuk olanlar otomatik olarak ayrılacaktır. Başlamak istiyor musunuz?")) return;
         
         isScanning = true;
         scanController = new AbortController();
@@ -483,7 +574,7 @@
         
         let brokenCount = 0;
         const toScan = allChannels.filter(c => !c.broken);
-        const batchSize = 5; // Aynı anda 5 kanal dener
+        const batchSize = 5; 
         
         for(let i=0; i<toScan.length; i+=batchSize) {
             if(signal.aborted) break;
@@ -499,7 +590,6 @@
                 }
             }));
             
-            // Kullanıcıya anlık olarak kırıkların alta indiğini göster
             localStorage.setItem('tv_broken', JSON.stringify(brokenUrls));
             sortAndRenderList();
         }
@@ -515,7 +605,6 @@
         }
     }
 
-    // ARKA PLANDA KANAL TEST EDİCİ
     function testStreamBackground(url) {
         return new Promise((resolve) => {
             const timeout = setTimeout(() => resolve(false), 4000); 
@@ -546,7 +635,7 @@
     }
     
     function resetToDefault() { 
-        if(confirm("Kayıtlı listeleri, favorileri ve karantinayı tamamen silip varsayılan TR listesine dönmek istediğinize emin misiniz? (Eklediğiniz Özel Listeler Silinmez)")) {
+        if(confirm("Geçerli Ana listeyi, favorileri ve karantinayı silip varsayılan TR listesine dönmek istediğinize emin misiniz? (Özel eklediğiniz tekil kanallar silinmez)")) {
             customChannelsData = []; favUrls = []; brokenUrls = [];
             localStorage.removeItem('tv_custom'); localStorage.removeItem('tv_favorites'); localStorage.removeItem('tv_broken');
             document.getElementById('countrySelect').value = "tr"; loadUrl(DEFAULT_LIST, "Varsayılan TR Listesine Dönüldü!"); closeAllDrawers(); 
@@ -570,7 +659,6 @@
         if (val.includes('<script') && val.includes('src=')) { let m = val.match(/src=["'](.*?)["']/); if(m) val = m[1]; } 
         if (val.includes('gist.github.com')) { val = val.replace('.js', '').replace('gist.github.com', 'gist.githubusercontent.com'); if (!val.endsWith('/raw')) val += '/raw'; } 
         
-        // YENİ: Listeyi hazır listelere kalıcı kaydetme mantığı
         if(val.startsWith('http')) {
             if(name && !append) {
                 if(!personalPresets.find(p => p.url === val)) {
@@ -584,7 +672,7 @@
             loadUrl(val, "Özel Liste Yüklendi", append); 
         } else { 
             parseAndAdd(val, append); 
-            if(name && !append) alert("Metin şeklindeki listeler hazır listelere eklenemez (Link olmalıdır). Ancak şu an oynatıcıya eklendi.");
+            if(name && !append) alert("Metin şeklindeki listeler hazır listelere eklenemez (Sadece linkler kaydedilebilir). Ancak şu an oynatıcıya geçici olarak eklendi.");
         } 
         document.getElementById('presetName').value = ""; 
     }
@@ -603,7 +691,13 @@
             else if (line.startsWith("http") && info.name) { newChannels.push({ id: 'ch_' + (globalIdCounter++), originalIndex: startIndex++, name: info.name, url: line, logo: info.logo, broken: brokenUrls.includes(line), isFavorite: favUrls.includes(line) }); info = {}; }
         }
         if (append) allChannels = allChannels.concat(newChannels); else allChannels = newChannels;
-        localStorage.setItem('tv_custom', JSON.stringify(allChannels)); sortAndRenderList();
+        
+        injectExtraChannels(); 
+        
+        const toSave = allChannels.filter(c => !c.id.startsWith('ch_ex_'));
+        localStorage.setItem('tv_custom', JSON.stringify(toSave)); 
+        sortAndRenderList();
+        
         if(allChannels.length && !append) { curIdx = -1; document.getElementById('previewTitle').innerText = "Kanal Seçin"; }
     }
 
@@ -642,7 +736,6 @@
 
     function handleStreamError(sessionToken) {
         if (sessionToken !== undefined && sessionToken !== currentPlaySession) return;
-        
         if(isErrorHandling || curIdx === -1) return;
         const ch = allChannels[curIdx];
         if (ch.broken) return; 
@@ -675,9 +768,7 @@
             if (attempts < allChannels.length) {
                 const newNextIdx = allChannels.findIndex(c => c.id === nextIdToPlay);
                 if (newNextIdx !== -1) play(newNextIdx, dir);
-            } else { 
-                showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); 
-            }
+            } else { showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); }
         }, 1500);
     }
 
@@ -708,7 +799,6 @@
 
     function playLocally(url, sessionToken) {
         const video = document.getElementById('localPlayer'); document.getElementById('castOnlyScreen').style.display = 'none'; 
-        
         video.onerror = null; 
         if (hls) { hls.destroy(); hls = null; }
         
@@ -731,9 +821,7 @@
             });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = url; 
-            
             video.onerror = function() { handleStreamError(sessionToken); };
-
             video.addEventListener('loadedmetadata', function() { 
                 video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(sessionToken); } }); 
             }, { once: true });
