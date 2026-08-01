@@ -223,8 +223,11 @@
     let subtitlesActive = false;
     let autoPlayDirection = 1; 
     let isErrorHandling = false;
-    let globalIdCounter = Date.now();
     
+    // YENİ: Oturum (Session) Takip Sistemi (Sahte hata sinyallerini reddetmek için)
+    let currentPlaySession = 0;
+    
+    let globalIdCounter = Date.now();
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
     let customChannelsData = JSON.parse(localStorage.getItem('tv_custom')) || []; 
@@ -234,7 +237,14 @@
     window.addEventListener('DOMContentLoaded', () => {
         if (customChannelsData.length > 0) {
             allChannels = customChannelsData;
-            allChannels.forEach(c => { c.broken = brokenUrls.includes(c.url); }); 
+            
+            // YENİ: Hafızadaki eski (ID'siz) listeleri iyileştirme yaması
+            allChannels.forEach((c, index) => {
+                if (!c.id) c.id = 'ch_' + (globalIdCounter++); // Eski kanallara zorla yeni kimlik bas
+                if (c.originalIndex === undefined) c.originalIndex = index;
+                c.broken = brokenUrls.includes(c.url);
+            });
+            
             sortAndRenderList();
             document.getElementById('status').innerText = "Kayıtlı Özel Liste Yüklendi";
         } else {
@@ -247,11 +257,8 @@
         vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow');
         vid.addEventListener('playing', () => document.getElementById('playIcon').innerText = 'pause');
         
-        // Hata yakalayıcının sahte sinyalleri yakalamasını önlüyoruz
-        vid.addEventListener('error', () => {
-            if (!vid.currentSrc || vid.currentSrc === window.location.href) return;
-            handleStreamError(); 
-        }); 
+        // Eskiden burada genel bir hata yakalayıcı vardı, onu sildik! 
+        // Artık hataları sadece aktif olan oturumun içinden (playLocally) dinliyoruz.
     });
 
     // --- ARAYÜZ KONTROLLERİ ---
@@ -366,8 +373,11 @@
 
     function performSearch() { const term = document.getElementById('filterInput').value.toLowerCase(); const items = document.querySelectorAll('.channel-item'); items.forEach(item => { const name = item.querySelector('.name').innerText.toLowerCase(); item.style.display = name.includes(term) ? 'flex' : 'none'; }); }
 
-    // GÜNCELLENDİ: Anında Atlama ve Domino Etkisini Kırma
-    function handleStreamError() {
+    // --- YENİ: OTURUM KONTROLLÜ (GÜVENLİ) OTO-ATLAMA ---
+    function handleStreamError(sessionToken) {
+        // Eğer gelen hata şimdiki oturuma ait değilse (eski kanaldan gelen gecikmeli hataysa) tamamen yoksay!
+        if (sessionToken !== undefined && sessionToken !== currentPlaySession) return;
+        
         if(isErrorHandling || curIdx === -1) return;
         const ch = allChannels[curIdx];
         if (ch.broken) return; 
@@ -394,10 +404,8 @@
         
         const nextIdToPlay = allChannels[nextIdx].id; 
         
-        // Listeyi anında sırala
         sortAndRenderList(); 
         
-        // Anında oynat (Gecikme sıfır!)
         if (attempts < allChannels.length) {
             const newNextIdx = allChannels.findIndex(c => c.id === nextIdToPlay);
             if (newNextIdx !== -1) play(newNextIdx, dir);
@@ -405,14 +413,16 @@
             showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); 
         }
 
-        // Domino etkisini kırmak için sistemi yarım saniye (500ms) "sağır" bırak
-        setTimeout(() => {
-            isErrorHandling = false;
-        }, 500);
+        setTimeout(() => { isErrorHandling = false; }, 500);
     }
 
     function play(idx, dir = 0) {
         if(idx < 0 || idx >= allChannels.length) return;
+        
+        // YENİ KANAL AÇILIRKEN YENİ OTURUM ŞİFRESİ OLUŞTURULUR
+        currentPlaySession++; 
+        let mySession = currentPlaySession; 
+
         curIdx = idx; let ch = allChannels[curIdx]; autoPlayDirection = dir || 1; 
         
         if (dir === 0 && ch.broken) { ch.broken = false; sortAndRenderList(); idx = curIdx; ch = allChannels[curIdx]; }
@@ -424,33 +434,51 @@
         
         if (remotePlayer && remotePlayer.isConnected) {
             document.getElementById('pStatus').innerText = "TV'ye Aktarılıyor..."; showOSD(ch.name, "TV'de Oynatılıyor");
-            if (!isDualPlayActive) stopLocally(); else playLocally(ch.url);
+            if (!isDualPlayActive) stopLocally(); else playLocally(ch.url, mySession);
             const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl'); media.metadata = new chrome.cast.media.GenericMediaMetadata(); media.metadata.title = ch.name;
             if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; const req = new chrome.cast.media.LoadRequest(media); req.autoplay = true;
-            cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req).then(()=>{ document.getElementById('pStatus').innerText = isDualPlayActive ? "Cihazda & TV'de İzleniyor" : "TV'de İzleniyor"; }).catch(() => { handleStreamError(); });
-        } else { document.getElementById('pStatus').innerText = "Bağlanıyor..."; showOSD(ch.name); playLocally(ch.url); }
+            cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req).then(()=>{ document.getElementById('pStatus').innerText = isDualPlayActive ? "Cihazda & TV'de İzleniyor" : "TV'de İzleniyor"; }).catch(() => { handleStreamError(mySession); });
+        } else { document.getElementById('pStatus').innerText = "Bağlanıyor..."; showOSD(ch.name); playLocally(ch.url, mySession); }
         resetControlsTimer();
     }
 
-    function playLocally(url) {
+    function playLocally(url, sessionToken) {
         const video = document.getElementById('localPlayer'); document.getElementById('castOnlyScreen').style.display = 'none'; 
+        
+        // Eski hata dinleyicilerini sıfırla
+        video.onerror = null; 
         if (hls) { hls.destroy(); hls = null; }
+        
         if (Hls.isSupported()) {
             hls = new Hls(); 
-            hls.on(Hls.Events.ERROR, function (event, data) { if (data.fatal) { switch (data.type) { case Hls.ErrorTypes.NETWORK_ERROR: case Hls.ErrorTypes.MEDIA_ERROR: handleStreamError(); break; default: hls.destroy(); handleStreamError(); break; } } });
+            hls.on(Hls.Events.ERROR, function (event, data) { 
+                if (data.fatal) { 
+                    switch (data.type) { 
+                        case Hls.ErrorTypes.NETWORK_ERROR: 
+                        case Hls.ErrorTypes.MEDIA_ERROR: 
+                            handleStreamError(sessionToken); break; 
+                        default: 
+                            hls.destroy(); handleStreamError(sessionToken); break; 
+                    } 
+                } 
+            });
             hls.loadSource(url); hls.attachMedia(video); 
             hls.on(Hls.Events.MANIFEST_PARSED, function() { 
-                video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(); } }); 
+                video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(sessionToken); } }); 
             });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = url; 
+            
+            // Sadece bu oturuma özel hata dinleyici
+            video.onerror = function() { handleStreamError(sessionToken); };
+
             video.addEventListener('loadedmetadata', function() { 
-                video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(); } }); 
-            });
+                video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(sessionToken); } }); 
+            }, { once: true });
         }
     }
 
-    function stopLocally() { const video = document.getElementById('localPlayer'); if (hls) { hls.destroy(); hls = null; } video.pause(); video.removeAttribute('src'); video.load(); document.getElementById('castOnlyScreen').style.display = 'flex'; if (curIdx !== -1) document.getElementById('castOnlyTitle').innerText = allChannels[curIdx].name; }
+    function stopLocally() { const video = document.getElementById('localPlayer'); video.onerror = null; if (hls) { hls.destroy(); hls = null; } video.pause(); video.removeAttribute('src'); video.load(); document.getElementById('castOnlyScreen').style.display = 'flex'; if (curIdx !== -1) document.getElementById('castOnlyTitle').innerText = allChannels[curIdx].name; }
     function moveToNextWorking(dir) { if(!allChannels.length) return; let next = curIdx; let attempts = 0; do { next = next + dir; if (next >= allChannels.length) next = 0; if (next < 0) next = allChannels.length - 1; attempts++; } while (allChannels[next].broken && attempts < allChannels.length); if(attempts < allChannels.length) play(next, dir); else showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); }
     function nextCh() { moveToNextWorking(1); }
     function prevCh() { moveToNextWorking(-1); }
