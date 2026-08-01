@@ -22,7 +22,7 @@
         /* --- ANA OYNATICI (TÜM EKRAN) --- */
         #playerWrapper { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: flex; flex-direction: column; z-index: 1; }
         video#localPlayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 2; }
-        video::cue { background-color: rgba(0, 0, 0, 0.8); color: white; font-size: 1.2rem; } /* Altyazı stili */
+        video::cue { background-color: rgba(0, 0, 0, 0.8); color: white; font-size: 1.2rem; } 
 
         /* --- TV'DE OYNATILIYOR BEKLEME EKRANI --- */
         #castOnlyScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a1c23 0%, #000 100%); z-index: 3; display: none; flex-direction: column; align-items: center; justify-content: center; color: #aaa; pointer-events: none; }
@@ -53,7 +53,7 @@
         .ctrl-btn { background: rgba(24, 25, 29, 0.7); border: 2px solid rgba(255,255,255,0.1); color: white; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 55px; height: 55px; backdrop-filter: blur(5px); transition: all 0.2s; flex-shrink: 0;}
         .ctrl-btn:hover { background: rgba(108, 92, 231, 0.8); border-color: var(--primary); transform: scale(1.1); }
         .ctrl-btn.main { width: 80px; height: 80px; }
-        .ctrl-btn.small { width: 45px; height: 45px; background: rgba(24, 25, 29, 0.4); } /* Altyazı butonu vb için */
+        .ctrl-btn.small { width: 45px; height: 45px; background: rgba(24, 25, 29, 0.4); } 
         .ctrl-btn.small.active { color: var(--primary); border-color: var(--primary); background: rgba(24, 25, 29, 0.8); }
         .ctrl-btn i { font-size: 30px; }
         .ctrl-btn.main i { font-size: 44px; }
@@ -89,9 +89,14 @@
         .channel-item { padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 12px; color: #ddd; transition: background 0.2s; }
         .channel-item:hover { background: rgba(255,255,255,0.05); }
         .channel-item.active { color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); border-left: 3px solid var(--primary); padding-left: 12px; }
+        
         .channel-item.broken { opacity: 0.4; }
         .channel-item.broken .name { text-decoration: line-through; }
         
+        /* KARANTİNA AYRACI */
+        .broken-divider { padding: 20px 15px 10px 15px; font-size: 0.7rem; font-weight: 700; color: rgba(231, 76, 60, 0.8); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 10px; }
+        .broken-divider::before, .broken-divider::after { content: ""; flex: 1; height: 1px; background: rgba(231, 76, 60, 0.2); }
+
         .c-icon { width: 30px; height: 30px; border-radius: 5px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;}
         .c-icon img { width: 100%; height: 100%; object-fit: contain; }
         .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -116,7 +121,6 @@
 </head>
 <body>
 
-<!-- ANA OYNATICI ALANI -->
 <div id="playerWrapper">
     <video id="localPlayer" playsinline crossorigin="anonymous"></video>
 
@@ -138,22 +142,18 @@
                 <span id="pStatus" class="status-badge">Hazır</span>
             </div>
             <div style="pointer-events: auto; display: flex; align-items: center; gap: 18px;">
-                <!-- DUAL PLAY -->
                 <i id="dualPlayBtn" class="material-icons-round" onclick="toggleDualPlay()" style="font-size: 24px; cursor: pointer; color: rgba(255,255,255,0.4); display: none;" title="Cihazda da Oynat">smartphone</i>
                 <google-cast-launcher style="width: 28px; height: 28px; cursor: pointer;"></google-cast-launcher>
             </div>
         </div>
         
         <div class="center-buttons">
-            <!-- ALTYAZI (CC) BUTONU -->
             <button class="ctrl-btn small" id="ccBtn" onclick="toggleSubtitles()" title="Altyazıyı Aç/Kapat"><i class="material-icons-round">closed_caption</i></button>
             <button class="ctrl-btn" onclick="prevCh()"><i class="material-icons-round">skip_previous</i></button>
             <button class="ctrl-btn main" id="playPauseBtn" onclick="togglePlayPause()"><i class="material-icons-round" id="playIcon">play_arrow</i></button>
             <button class="ctrl-btn" onclick="nextCh()"><i class="material-icons-round">skip_next</i></button>
-            <!-- BOŞLUK DOLDURUCU (Simetri için) -->
             <div style="width:45px; height:45px; flex-shrink:0;"></div>
         </div>
-        
         <div style="height: 60px;"></div>
     </div>
 
@@ -179,13 +179,11 @@
             <div class="module-body" style="padding-top:0; border:none;">
                 <select id="countrySelect" onchange="changeCountry()">
                     <option value="tr" selected>🇹🇷 Türkiye (Varsayılan)</option>
-                    <!-- Yeşilçam kaldırıldı -->
                     <option value="us">🇺🇸 USA</option>
                     <option value="uk">🇬🇧 UK</option>
                     <option value="de">🇩🇪 Germany</option>
                 </select>
                 <div id="status" style="font-size:0.75rem; text-align:center; margin-top:10px; color:#2ecc71;">Liste Bekleniyor...</div>
-                <!-- SIFIRLAMA BUTONU -->
                 <button class="btn" style="width:100%; margin-top:10px; background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red);" onclick="resetToDefault()">Varsayılana Dön</button>
             </div>
         </div>
@@ -199,7 +197,6 @@
                 <textarea id="inputData" placeholder="Script kodunu veya Linki yapıştır..."></textarea>
                 <div class="btn-group">
                     <button class="btn" style="flex: 0.5;" onclick="pasteClip()"><i class="material-icons-round">content_paste</i></button>
-                    <!-- Ekle ve Değiştir Butonları -->
                     <button class="btn" style="background:#2ecc71; border-color:#2ecc71;" onclick="manualLoad(true)">Ekle</button>
                     <button class="btn" style="background:var(--primary); border-color:var(--primary);" onclick="manualLoad(false)">Değiştir</button>
                 </div>
@@ -227,14 +224,10 @@
         <span style="color: white; font-weight: 600; font-size: 1.1rem;" id="listCountTitle">Kanallar</span>
         <i class="material-icons-round" onclick="closeAllDrawers()" style="color: var(--red); cursor: pointer; font-size: 24px;">close</i>
     </div>
-    
     <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05);">
         <input type="text" id="filterInput" placeholder="Kanal ara..." onkeyup="performSearch()" style="padding: 8px; font-size: 0.85rem;">
     </div>
-    
-    <div id="channelList" class="channel-list">
-        <!-- JS İLE DOLDURULACAK -->
-    </div>
+    <div id="channelList" class="channel-list"></div>
 </div>
 
 <script>
@@ -247,8 +240,8 @@
     let remotePlayer, remoteController;
     let isDualPlayActive = false;
     let subtitlesActive = false;
+    let autoPlayDirection = 1; // 1: İleri, -1: Geri, 0: Manuel tıklama
     
-    // Hafızadan Kayıtlı Favorileri ve Özel Listeyi Al
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let customChannelsData = JSON.parse(localStorage.getItem('tv_custom')) || []; 
     
@@ -257,12 +250,12 @@
     // --- BAŞLANGIÇ ---
     window.addEventListener('DOMContentLoaded', () => {
         if (customChannelsData.length > 0) {
-            // Eğer daha önceden değiştirilmiş özel bir liste varsa onu yükle
             allChannels = customChannelsData;
+            // Kayıtlı listede kanalın bozuk durumu kalıcı olmasın diye sıfırlıyoruz.
+            allChannels.forEach(c => c.broken = false); 
             sortAndRenderList();
             document.getElementById('status').innerText = "Kayıtlı Özel Liste Yüklendi";
         } else {
-            // Yoksa varsayılan TR listesini yükle
             loadUrl(DEFAULT_LIST, "TR Listesi Hazır!");
         }
         
@@ -272,9 +265,7 @@
         vid.addEventListener('play', () => document.getElementById('playIcon').innerText = 'pause');
         vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow');
         vid.addEventListener('playing', () => document.getElementById('playIcon').innerText = 'pause');
-        
-        // Hata yakalama (Oynatılamayan kanallar için)
-        vid.addEventListener('error', handleStreamError);
+        vid.addEventListener('error', handleStreamError); // Native video hataları için
     });
 
     // --- ARAYÜZ KONTROLLERİ ---
@@ -415,7 +406,7 @@
         }
     }
 
-    // --- LİSTE VERİ İŞLEMLERİ (EKLE/DEĞİŞTİR/SIFIRLA) ---
+    // --- LİSTE VERİ İŞLEMLERİ ---
     function resetToDefault() {
         customChannelsData = [];
         localStorage.removeItem('tv_custom');
@@ -476,21 +467,18 @@
             allChannels = newChannels;
         }
         
-        // Eğer kullanıcı kendi listesini yüklemişse kalıcı olarak sakla
         localStorage.setItem('tv_custom', JSON.stringify(allChannels));
-        
         sortAndRenderList();
         
-        // Eğer append değilse ve kanal varsa ilkini seçmeden sadece listeyi göster
         if(allChannels.length && !append) {
             curIdx = -1; 
             document.getElementById('previewTitle').innerText = "Kanal Seçin";
         }
     }
 
-    // --- FAVORİ SİSTEMİ & SIRALAMA ---
+    // --- FAVORİ & SIRALAMA & KARANTİNA YÖNETİMİ ---
     function toggleFavorite(event, url) {
-        event.stopPropagation(); // Satıra tıklamayı (oynatmayı) engelle
+        event.stopPropagation(); 
         const ch = allChannels.find(c => c.url === url);
         if(!ch) return;
         
@@ -502,38 +490,54 @@
             favUrls = favUrls.filter(u => u !== url);
         }
         localStorage.setItem('tv_favorites', JSON.stringify(favUrls));
-        
-        // Şu anki kanalın URL'sini aklımızda tutalım ki sıralanırken Index kaybolmasın
-        const currentUrl = curIdx !== -1 ? allChannels[curIdx].url : null;
-        
         sortAndRenderList();
-        
-        // Sıralama sonrası curIdx'i güncelle
-        if(currentUrl) curIdx = allChannels.findIndex(c => c.url === currentUrl);
     }
 
     function sortAndRenderList() {
-        // Favorileri en başa al
+        // Aktif kanalın URL'sini tut ki, index kaymasını düzeltelim.
+        const currentUrl = curIdx !== -1 ? allChannels[curIdx].url : null;
+
+        // Sıralama Kuralları: 
+        // 1. Çalışanlar üste, Bozuklar en alta.
+        // 2. Çalışanlar arasında Favoriler en üste.
         allChannels.sort((a, b) => {
+            if (a.broken && !b.broken) return 1;
+            if (!a.broken && b.broken) return -1;
+            
             if (a.isFavorite && !b.isFavorite) return -1;
             if (!a.isFavorite && b.isFavorite) return 1;
-            return 0; // Kendi içlerindeki sırayı koru
+            
+            return 0; // Orijinal sırayı koru
         });
         
+        // Yeni listeye göre mevcut kanalın indexini güncelle
+        if (currentUrl) {
+            curIdx = allChannels.findIndex(c => c.url === currentUrl);
+        }
+
         document.getElementById('listCountTitle').innerText = `${allChannels.length} Kanal`;
         
         const container = document.getElementById('channelList');
         container.innerHTML = ""; 
+        
+        let brokenHeaderAdded = false;
 
-        allChannels.slice(0, 1500).forEach((ch, i) => {
+        allChannels.slice(0, 2000).forEach((ch, i) => {
+            // Karatina Çizgisini Ekle
+            if (ch.broken && !brokenHeaderAdded) {
+                const sep = document.createElement('div');
+                sep.className = 'broken-divider';
+                sep.innerHTML = '<span>Yayın Alınamayan Kanallar</span>';
+                container.appendChild(sep);
+                brokenHeaderAdded = true;
+            }
+
             const item = document.createElement('div'); 
             item.className = `channel-item ${i===curIdx ? 'active' : ''} ${ch.broken ? 'broken' : ''}`; 
             item.id = `c-${i}`;
             
-            // Eğer kanal bozuksa, tıklandığında broken statüsünü sıfırla ki tekrar deneyebilsin
             item.onclick = () => { 
-                if(ch.broken) ch.broken = false; 
-                play(i); 
+                play(i, 0); // 0 = Manuel tıklama
                 closeAllDrawers(); 
             }; 
             
@@ -564,24 +568,70 @@
         window.open(`https://www.google.com/search?q=${encodeURIComponent('site:github.com "EXTM3U" ' + term)}`, '_blank');
     }
 
-    // --- OYNATMA VE HATA (KIRIK LİNK) MANTIĞI ---
+    // --- OYNATMA VE AKILLI ATLAMALI HATA YÖNETİMİ ---
+    
     function handleStreamError() {
         if(curIdx === -1) return;
-        allChannels[curIdx].broken = true; // Kanalı bozuk olarak işaretle
-        sortAndRenderList(); // Listeyi güncelle (kırmızı/çizik yapmak için)
+        const ch = allChannels[curIdx];
         
+        if (ch.broken) return; // Zaten bozuk olarak işaretlenmiş, sonsuz döngüyü engelle
+
+        ch.broken = true; // Kanalı Karantinaya al
+        showOSD("Yayın Alınamadı", "Atlanıyor...");
         document.getElementById('pStatus').innerText = "Yayın Alınamadı";
-        showOSD("Yayın Alınamadı", "Sonraki kanala atlanacak...");
+        
+        // Atlanacak yönü belirle (Sağ oksam ileri, sol oksam geri, manuel tıklamışsam varsayılan ileri)
+        const dir = (autoPlayDirection === -1) ? -1 : 1;
+        
+        // Çalışan ilk kanalı bul
+        let nextIdx = curIdx;
+        let attempts = 0;
+        do {
+            nextIdx = nextIdx + dir;
+            if (nextIdx >= allChannels.length) nextIdx = 0;
+            if (nextIdx < 0) nextIdx = allChannels.length - 1;
+            attempts++;
+        } while (allChannels[nextIdx].broken && attempts < allChannels.length);
+
+        // Geçeceğimiz kanalın URL'sini hafızada tut
+        const nextUrlToPlay = allChannels[nextIdx].url;
+
+        // Listeyi yeniden sırala (Böylece bozulan kanal direkt en alta, çizginin altına atılır)
+        sortAndRenderList();
+
+        // Eğer tüm liste bozuk değilse, hedef kanalı yeni indexiyle çalıştır
+        if (attempts < allChannels.length) {
+            const newNextIdx = allChannels.findIndex(c => c.url === nextUrlToPlay);
+            if (newNextIdx !== -1) {
+                play(newNextIdx, dir); // Yönü koruyarak çalıştır (Tekrar hata verirse aynı yönde devam etsin)
+            }
+        } else {
+            showOSD("Hata", "Çalışan hiçbir kanal bulunamadı");
+        }
     }
 
-    function play(idx) {
+    function play(idx, dir = 0) {
         if(idx < 0 || idx >= allChannels.length) return;
-        curIdx = idx; const ch = allChannels[idx];
         
+        curIdx = idx; // Yeni indexi ata
+        let ch = allChannels[curIdx];
+        
+        autoPlayDirection = dir; // 1, -1 veya 0
+        
+        // Eğer kullanıcı manuel olarak (dir=0) KARANTİNADAKİ bir kanala tıklarsa,
+        // ona ikinci bir şans vermek için 'broken' durumunu kaldırıp tekrar üste alıyoruz.
+        if (dir === 0 && ch.broken) {
+            ch.broken = false;
+            sortAndRenderList(); // Kanal normale döndü, liste yeniden sıralandı
+            idx = curIdx; // Sıralamadan sonra indexi güncelledik
+            ch = allChannels[curIdx];
+        }
+
+        // Aktif stili ayarla
         document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
-        const activeItem = document.getElementById(`c-${idx}`);
+        const activeItem = document.getElementById(`c-${curIdx}`);
         if(activeItem) {
-            activeItem.classList.remove('broken'); // Yeni deneme
+            activeItem.classList.remove('broken'); // Şans tanınan kanalın üzerindeki çiziği kaldır
             activeItem.classList.add('active');
         }
         
@@ -603,7 +653,7 @@
             cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req).then(()=>{
                 document.getElementById('pStatus').innerText = isDualPlayActive ? "Cihazda & TV'de İzleniyor" : "TV'de İzleniyor";
             }).catch(() => {
-                handleStreamError();
+                handleStreamError(); // TV yükleyemezse hatayı tetikle
             });
         } else {
             document.getElementById('pStatus').innerText = "Bağlanıyor...";
@@ -625,6 +675,7 @@
 
         if (Hls.isSupported()) {
             hls = new Hls(); 
+            // HLS İç Hatalarını Yakala
             hls.on(Hls.Events.ERROR, function (event, data) {
                 if (data.fatal) {
                     switch (data.type) {
@@ -634,6 +685,7 @@
                             break;
                         default:
                             hls.destroy();
+                            handleStreamError();
                             break;
                     }
                 }
@@ -668,30 +720,25 @@
         }
     }
 
-    // İleri / Geri oklarında bozuk (broken) kanalları otomatik ATLA
-    function nextCh() { 
+    // --- YÖN TUŞLARI (AKILLI ATLAYICI) ---
+    function moveToNextWorking(dir) {
         if(!allChannels.length) return; 
         let next = curIdx;
         let attempts = 0;
-        do {
-            next = next + 1 >= allChannels.length ? 0 : next + 1;
-            attempts++;
-        } while (allChannels[next].broken && attempts < allChannels.length); // Bozuksa sonrakine geç
         
-        if(attempts < allChannels.length) play(next); // Hepsi bozuk değilse oynat
-    }
-    
-    function prevCh() { 
-        if(!allChannels.length) return; 
-        let prev = curIdx;
-        let attempts = 0;
+        // Bozuk (karantinaya alınmış) kanalları tespit edip atla
         do {
-            prev = prev - 1 < 0 ? allChannels.length - 1 : prev - 1;
+            next = next + dir;
+            if (next >= allChannels.length) next = 0;
+            if (next < 0) next = allChannels.length - 1;
             attempts++;
-        } while (allChannels[prev].broken && attempts < allChannels.length);
+        } while (allChannels[next].broken && attempts < allChannels.length); 
         
-        if(attempts < allChannels.length) play(prev);
+        if(attempts < allChannels.length) play(next, dir);
     }
+
+    function nextCh() { moveToNextWorking(1); }
+    function prevCh() { moveToNextWorking(-1); }
 </script>
 
 </body>
