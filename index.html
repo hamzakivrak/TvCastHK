@@ -83,6 +83,9 @@
         .btn { flex: 1; height: 40px; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: #3d3e46; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 500;}
         .btn:hover { opacity: 0.9; }
         .btn-icon { padding: 0 15px; background: #3d3e46; color: white; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
+        
+        .gh-result-item { padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; word-break: break-all; }
+        .gh-result-item:hover { background: rgba(108, 92, 231, 0.2); border-color: var(--primary); }
 
         /* --- KANAL LİSTESİ --- */
         .channel-list { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
@@ -103,6 +106,9 @@
         /* --- OSD --- */
         .osd-title { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 1.2rem; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center;}
         .osd-title.show { opacity: 1; }
+        
+        /* Cast Butonu için Özel Renk (Standart gri ikonun görünür olması için) */
+        google-cast-launcher { --connected-color: #6c5ce7; --disconnected-color: white; }
 
         @media (max-width: 768px) {
             #leftSidebar, #rightSidebar { width: 85%; }
@@ -133,9 +139,10 @@
                 <span id="previewTitle">Kanal Seçin</span>
                 <span id="pStatus" class="status-badge">Hazır</span>
             </div>
-            <div style="pointer-events: auto; display: flex; align-items: center; gap: 18px;">
-                <i id="dualPlayBtn" class="material-icons-round" onclick="toggleDualPlay()" style="font-size: 24px; cursor: pointer; color: rgba(255,255,255,0.4); display: none;" title="Cihazda da Oynat">smartphone</i>
-                <google-cast-launcher style="width: 28px; height: 28px; cursor: pointer;"></google-cast-launcher>
+            <!-- CAST BÖLÜMÜ GERİ GETİRİLDİ VE GÜÇLENDİRİLDİ -->
+            <div style="pointer-events: auto; display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+                <i id="dualPlayBtn" class="material-icons-round" onclick="toggleDualPlay()" style="font-size: 22px; cursor: pointer; color: rgba(255,255,255,0.4); display: none;" title="Cihazda da Oynat">smartphone</i>
+                <google-cast-launcher style="width: 24px; height: 24px; cursor: pointer; display: inline-block;"></google-cast-launcher>
             </div>
         </div>
         
@@ -176,6 +183,19 @@
                 </select>
                 <div id="status" style="font-size:0.75rem; text-align:center; margin-top:10px; color:#2ecc71;">Liste Bekleniyor...</div>
                 <button class="btn" style="width:100%; margin-top:10px; background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red);" onclick="resetToDefault()">Varsayılana Dön</button>
+            </div>
+        </div>
+
+        <!-- GITHUB ARAMA MODÜLÜ GERİ GETİRİLDİ -->
+        <div class="module">
+            <div class="module-header" onclick="toggleModule('mod-github')">
+                <p class="module-title">GitHub Gist'te Ara</p>
+                <i class="material-icons-round icon-state">expand_more</i>
+            </div>
+            <div id="mod-github" class="module-body" style="display:none;">
+                <input type="text" id="ghSearchInput" placeholder="Örn: iptv türkiye, belgesel..." onkeydown="if(event.key === 'Enter') searchGithub()">
+                <button class="btn" style="width:100%; margin-top:10px; background: var(--primary); border-color: var(--primary);" onclick="searchGithub()">Gist'lerde Ara</button>
+                <div id="ghResults" style="margin-top:15px; max-height:200px; overflow-y:auto;"></div>
             </div>
         </div>
 
@@ -224,7 +244,7 @@
     let autoPlayDirection = 1; 
     let isErrorHandling = false;
     
-    let currentPlaySession = 0;
+    let currentPlaySession = 0; // Sahte hata sinyallerini engellemek için seans takibi
     
     let globalIdCounter = Date.now();
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
@@ -285,22 +305,110 @@
         if(curIdx === -1) return; const ch = allChannels[curIdx]; toggleFavorite(new Event('click'), ch.id); updateMainFavBtn(); showOSD(ch.isFavorite ? "Favorilere Eklendi" : "Favorilerden Çıkarıldı", ch.name);
     }
 
-    // --- CAST KURULUMU ---
+    // --- CAST (YANSITMA) KURULUMU VE FONKSİYONLARI ---
     window['__onGCastApiAvailable'] = function(isAvailable) {
         if (isAvailable) {
-            cast.framework.CastContext.getInstance().setOptions({ receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
-            remotePlayer = new cast.framework.RemotePlayer(); remoteController = new cast.framework.RemotePlayerController(remotePlayer);
+            cast.framework.CastContext.getInstance().setOptions({ 
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, 
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED 
+            });
+            remotePlayer = new cast.framework.RemotePlayer(); 
+            remoteController = new cast.framework.RemotePlayerController(remotePlayer);
+            
             remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
                 const dpBtn = document.getElementById('dualPlayBtn');
-                if (remotePlayer.isConnected) { document.getElementById('pStatus').innerText = "TV'ye Bağlı"; dpBtn.style.display = 'block'; if(curIdx !== -1) play(curIdx, 0); } 
-                else { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; dpBtn.style.display = 'none'; isDualPlayActive = false; dpBtn.style.color = "rgba(255,255,255,0.4)"; if(curIdx !== -1) play(curIdx, 0); }
+                if (remotePlayer.isConnected) { 
+                    document.getElementById('pStatus').innerText = "TV'ye Bağlı"; 
+                    dpBtn.style.display = 'block'; 
+                    if(curIdx !== -1) play(curIdx, 0); 
+                } else { 
+                    document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; 
+                    dpBtn.style.display = 'none'; 
+                    isDualPlayActive = false; 
+                    dpBtn.style.color = "rgba(255,255,255,0.4)"; 
+                    if(curIdx !== -1) play(curIdx, 0); 
+                }
             });
+            
             remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED, () => {
-                if(remotePlayer.isConnected) { document.getElementById('playIcon').innerText = remotePlayer.isPaused ? 'play_arrow' : 'pause'; if (isDualPlayActive) { const vid = document.getElementById('localPlayer'); if (remotePlayer.isPaused) vid.pause(); else vid.play(); } }
+                if(remotePlayer.isConnected) { 
+                    document.getElementById('playIcon').innerText = remotePlayer.isPaused ? 'play_arrow' : 'pause'; 
+                    if (isDualPlayActive) { 
+                        const vid = document.getElementById('localPlayer'); 
+                        if (remotePlayer.isPaused) vid.pause(); else vid.play(); 
+                    } 
+                }
             });
         }
     };
-    function togglePlayPause() { if (remotePlayer && remotePlayer.isConnected) { remoteController.playOrPause(); if (isDualPlayActive) { const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); } } else { const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); } }
+    
+    function toggleDualPlay() {
+        isDualPlayActive = !isDualPlayActive;
+        const dpBtn = document.getElementById('dualPlayBtn');
+        if (isDualPlayActive) {
+            dpBtn.style.color = "var(--primary)";
+            document.getElementById('pStatus').innerText = "Cihazda & TV'de İzleniyor";
+            if (curIdx !== -1) playLocally(allChannels[curIdx].url, currentPlaySession);
+        } else {
+            dpBtn.style.color = "rgba(255,255,255,0.4)";
+            document.getElementById('pStatus').innerText = "TV'de İzleniyor";
+            stopLocally();
+        }
+        showOSD(isDualPlayActive ? "Çift Ekran Açık" : "Sadece TV'de", isDualPlayActive ? "Hem telefonda hem TV'de oynatılacak" : "Telefon ekranı kapatıldı");
+    }
+
+    function togglePlayPause() { 
+        if (remotePlayer && remotePlayer.isConnected) { 
+            remoteController.playOrPause(); 
+            if (isDualPlayActive) { const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); } 
+        } else { 
+            const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); 
+        } 
+    }
+
+    // --- GITHUB GIST ARAMA FONKSİYONU ---
+    async function searchGithub() {
+        const query = document.getElementById('ghSearchInput').value.trim();
+        const resultsDiv = document.getElementById('ghResults');
+        if(!query) { resultsDiv.innerHTML = '<div style="font-size:0.8rem; color:#aaa; text-align:center;">Lütfen bir arama kelimesi girin.</div>'; return; }
+        
+        resultsDiv.innerHTML = '<div style="font-size:0.8rem; color:#aaa; text-align:center;">GitHub\'da aranıyor... Lütfen bekleyin.</div>';
+        
+        try {
+            const response = await fetch(`https://api.github.com/search/gists?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            
+            if(data.items && data.items.length > 0) {
+                resultsDiv.innerHTML = '';
+                let foundMatch = false;
+                
+                data.items.forEach(gist => {
+                    const files = Object.values(gist.files);
+                    files.forEach(file => {
+                        if(file.filename.toLowerCase().endsWith('.m3u') || file.filename.toLowerCase().endsWith('.m3u8') || file.filename.toLowerCase().endsWith('.txt')) {
+                            foundMatch = true;
+                            const itemDiv = document.createElement('div');
+                            itemDiv.className = 'gh-result-item';
+                            itemDiv.innerHTML = `<strong>${file.filename}</strong><br><span style="font-size:0.7rem; color:#aaa;">Sahibi: ${gist.owner ? gist.owner.login : 'Bilinmeyen'}</span>`;
+                            itemDiv.onclick = () => {
+                                loadUrl(file.raw_url, "Gist Yüklendi", false);
+                                closeAllDrawers();
+                            };
+                            resultsDiv.appendChild(itemDiv);
+                        }
+                    });
+                });
+                
+                if(!foundMatch) {
+                    resultsDiv.innerHTML = '<div style="font-size:0.8rem; color:#aaa; text-align:center;">Aradığınız kelimeye uygun .m3u dosyası bulunamadı.</div>';
+                }
+            } else {
+                resultsDiv.innerHTML = '<div style="font-size:0.8rem; color:#aaa; text-align:center;">Sonuç bulunamadı.</div>';
+            }
+        } catch(e) {
+            resultsDiv.innerHTML = '<div style="font-size:0.8rem; color:var(--red); text-align:center;">Arama yapılırken bir ağ hatası oluştu.</div>';
+        }
+    }
 
     // --- LİSTE VE HAFIZA İŞLEMLERİ ---
     function resetQuarantine() {
@@ -405,7 +513,6 @@
         
         sortAndRenderList(); 
         
-        // DEDİĞİNİZ GİBİ: Bekleme süresini 1.5 saniye olarak geri getirdim
         setTimeout(() => {
             isErrorHandling = false;
             if (attempts < allChannels.length) {
