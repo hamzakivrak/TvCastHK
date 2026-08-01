@@ -105,9 +105,6 @@
         /* --- OSD --- */
         .osd-title { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 1.2rem; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center;}
         .osd-title.show { opacity: 1; }
-        
-        /* Orijinal Cast Butonu Renk ve Boyut Ayarı */
-        google-cast-launcher { --connected-color: #2ecc71; --disconnected-color: white; width: 35px; height: 35px; cursor: pointer; }
 
         @media (max-width: 768px) {
             #leftSidebar, #rightSidebar { width: 85%; }
@@ -118,6 +115,68 @@
             .ctrl-btn.main i { font-size: 36px; }
         }
     </style>
+
+    <!-- 1. ADIM: CAST MOTORU YÜKLENMEDEN ÖNCE FONKSİYONU HAZIRLA -->
+    <script>
+        let remotePlayer, remoteController;
+        window['__onGCastApiAvailable'] = function(isAvailable) {
+            if (isAvailable) {
+                cast.framework.CastContext.getInstance().setOptions({ 
+                    receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, 
+                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED 
+                });
+                remotePlayer = new cast.framework.RemotePlayer(); 
+                remoteController = new cast.framework.RemotePlayerController(remotePlayer);
+                
+                remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
+                    const dpCont = document.getElementById('dualPlayContainer');
+                    const dpBtn = document.getElementById('dualPlayToggleBtn');
+                    const connStatus = document.getElementById('connStatus');
+                    const castBox = document.getElementById('castBox');
+                    const customCastIcon = document.getElementById('customCastIcon');
+                    
+                    if (remotePlayer.isConnected) { 
+                        document.getElementById('pStatus').innerText = "TV'ye Bağlı"; 
+                        connStatus.innerText = "TV'ye Bağlı";
+                        connStatus.style.color = "#2ecc71";
+                        castBox.style.borderColor = "#2ecc71";
+                        customCastIcon.innerText = "cast_connected";
+                        customCastIcon.style.color = "#2ecc71";
+                        
+                        dpCont.style.display = 'flex'; 
+                        if(curIdx !== -1) play(curIdx, 0); 
+                    } else { 
+                        document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; 
+                        connStatus.innerText = "Bağlantı Bekleniyor...";
+                        connStatus.style.color = "#aaa";
+                        castBox.style.borderColor = "var(--primary)";
+                        customCastIcon.innerText = "cast";
+                        customCastIcon.style.color = "var(--primary)";
+                        
+                        dpCont.style.display = 'none'; 
+                        isDualPlayActive = false; 
+                        dpBtn.innerText = "Kapalı";
+                        dpBtn.style.background = "#3d3e46";
+                        
+                        if(curIdx !== -1) play(curIdx, 0); 
+                    }
+                });
+                
+                remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED, () => {
+                    if(remotePlayer.isConnected) { 
+                        document.getElementById('playIcon').innerText = remotePlayer.isPaused ? 'play_arrow' : 'pause'; 
+                        if (isDualPlayActive) { 
+                            const vid = document.getElementById('localPlayer'); 
+                            if (remotePlayer.isPaused) vid.pause(); else vid.play(); 
+                        } 
+                    }
+                });
+            }
+        };
+    </script>
+    <!-- 2. ADIM: GOOGLE SCRIPT'İNİ YÜKLE (Burası başlığa alındı ki geç kalmasın) -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+
 </head>
 <body>
 
@@ -165,13 +224,14 @@
     
     <div class="settings-content">
 
-        <!-- DOKUNULMAMIŞ, SAF GOOGLE CAST BİLEŞENİ (Hiçbir aracı kod veya onclick yok!) -->
-        <div id="castBox" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s;">
+        <!-- SAF HTML KUTUMUZ: Google'ın kaybolan butonu silindi. Kendi butonumuzu koyduk! -->
+        <div id="castBox" onclick="triggerCustomCast()" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s; cursor: pointer;">
             <div>
                 <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
                 <span id="connStatus" style="font-size:0.8rem; color:#aaa;">Bağlantı Bekleniyor...</span>
             </div>
-            <google-cast-launcher></google-cast-launcher>
+            <!-- Google'ın launcher'ı yerine tamamen bizim kontrolümüzde olan sabit bir ikon -->
+            <i class="material-icons-round" id="customCastIcon" style="color: var(--primary); font-size: 28px;">cast</i>
         </div>
         
         <!-- ÇİFT EKRAN (DUAL PLAY) MODÜLÜ -->
@@ -247,7 +307,6 @@
     let curIdx = -1;
     let hls = null;
     let controlsTimer, osdTimer;
-    let remotePlayer, remoteController;
     let isDualPlayActive = false;
     let subtitlesActive = false;
     let autoPlayDirection = 1; 
@@ -258,6 +317,28 @@
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
     let customChannelsData = JSON.parse(localStorage.getItem('tv_custom')) || []; 
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
+
+    // --- ÖZEL BUTON İÇİN TETİKLEYİCİ FONKSİYON ---
+    function triggerCustomCast() {
+        if (typeof cast === 'undefined' || !cast.framework) {
+            showOSD("Uyarı", "Tarayıcınız Cast desteklemiyor (Chrome kullanın veya Opera ayarlarını açın).");
+            return;
+        }
+        
+        const context = cast.framework.CastContext.getInstance();
+        
+        if (context.getCurrentSession()) {
+            if (confirm("TV bağlantısını kesmek istiyor musunuz?")) {
+                context.endCurrentSession(true);
+            }
+        } else {
+            context.requestSession().then(() => {
+                closeAllDrawers();
+            }).catch((err) => {
+                console.log("Cast arama iptal edildi veya hata:", err);
+            });
+        }
+    }
 
     window.addEventListener('DOMContentLoaded', () => {
         if (customChannelsData.length > 0) {
@@ -307,61 +388,6 @@
     function toggleMainFavorite() {
         if(curIdx === -1) return; const ch = allChannels[curIdx]; toggleFavorite(new Event('click'), ch.id); updateMainFavBtn(); showOSD(ch.isFavorite ? "Favorilere Eklendi" : "Favorilerden Çıkarıldı", ch.name);
     }
-
-    // --- CAST MOTORU VE UI KONTROLLERİ ---
-    window['__onGCastApiAvailable'] = function(isAvailable) {
-        if (isAvailable) {
-            cast.framework.CastContext.getInstance().setOptions({ 
-                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, 
-                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED 
-            });
-            remotePlayer = new cast.framework.RemotePlayer(); 
-            remoteController = new cast.framework.RemotePlayerController(remotePlayer);
-            
-            remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => {
-                const dpCont = document.getElementById('dualPlayContainer');
-                const dpBtn = document.getElementById('dualPlayToggleBtn');
-                
-                const connStatus = document.getElementById('connStatus');
-                const castBox = document.getElementById('castBox');
-                
-                if (remotePlayer.isConnected) { 
-                    document.getElementById('pStatus').innerText = "TV'ye Bağlı"; 
-                    
-                    connStatus.innerText = "TV'ye Bağlı";
-                    connStatus.style.color = "#2ecc71";
-                    castBox.style.borderColor = "#2ecc71";
-                    
-                    dpCont.style.display = 'flex'; 
-                    if(curIdx !== -1) play(curIdx, 0); 
-                } else { 
-                    document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; 
-                    
-                    connStatus.innerText = "Bağlantı Bekleniyor...";
-                    connStatus.style.color = "#aaa";
-                    castBox.style.borderColor = "var(--primary)";
-                    
-                    dpCont.style.display = 'none'; 
-                    
-                    isDualPlayActive = false; 
-                    dpBtn.innerText = "Kapalı";
-                    dpBtn.style.background = "#3d3e46";
-                    
-                    if(curIdx !== -1) play(curIdx, 0); 
-                }
-            });
-            
-            remoteController.addEventListener(cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED, () => {
-                if(remotePlayer.isConnected) { 
-                    document.getElementById('playIcon').innerText = remotePlayer.isPaused ? 'play_arrow' : 'pause'; 
-                    if (isDualPlayActive) { 
-                        const vid = document.getElementById('localPlayer'); 
-                        if (remotePlayer.isPaused) vid.pause(); else vid.play(); 
-                    } 
-                }
-            });
-        }
-    };
     
     function toggleDualPlay() {
         isDualPlayActive = !isDualPlayActive;
@@ -609,8 +635,6 @@
     function prevCh() { moveToNextWorking(-1); }
     function toggleSubtitles() { subtitlesActive = !subtitlesActive; const btn = document.getElementById('ccBtn'); if(subtitlesActive) btn.classList.add('active'); else btn.classList.remove('active'); const video = document.getElementById('localPlayer'); let foundTrack = false; for (let i = 0; i < video.textTracks.length; i++) { video.textTracks[i].mode = subtitlesActive ? 'showing' : 'hidden'; foundTrack = true; } showOSD("Altyazı " + (subtitlesActive ? "Açık" : "Kapalı"), foundTrack ? "Yayın destekliyorsa görünecek" : "Bu yayında gömülü altyazı yok"); }
 </script>
-
-<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 
 </body>
 </html>
