@@ -502,7 +502,26 @@
         showOSD("Kanal Eklendi", name + " sadece mevcut listeye sabitlendi.");
     }
 
-    // YENİ: YouTube Playlist Yükleme Mimarısi
+    // YENİ: Çoklu Sunucu Deneme Fonksiyonu (Engelleri Aşar)
+    async function fetchYTPlaylistData(listId) {
+        const servers = [
+            `https://pipedapi.kavin.rocks/playlists/${listId}`,
+            `https://pipedapi.tokhmi.xyz/playlists/${listId}`,
+            `https://api.piped.projectsegfau.lt/playlists/${listId}`,
+            `https://pipedapi.adminforge.de/playlists/${listId}`
+        ];
+        
+        for (let api of servers) {
+            try {
+                let res = await fetch(api);
+                if (!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
+                if (res.ok) return await res.json();
+            } catch (e) { console.log("Sunucu atlandı:", api); }
+        }
+        throw new Error("Tüm Piped sunucuları engellendi");
+    }
+
+    // GÜNCELLENDİ: Playlist Ekleme
     async function addYTPlaylist() {
         let url = document.getElementById('ytPlaylistUrl').value.trim();
         if(!url) return;
@@ -510,17 +529,14 @@
         let listId = null;
         try {
             if(url.includes('list=')) { listId = new URLSearchParams(url.substring(url.indexOf('?'))).get('list'); } 
-            else { listId = url; } // Sadece ID yazıldıysa
+            else { listId = url; }
         } catch(e) {}
         
         if(!listId) { alert("Geçersiz YouTube Playlist linki."); return; }
         
-        const stat = document.getElementById('status'); stat.innerText = "Liste bilgileri çekiliyor...";
+        const stat = document.getElementById('status'); stat.innerText = "Yedek sunuculardan liste aranıyor...";
         try {
-            const api = `https://pipedapi.kavin.rocks/playlists/${listId}`;
-            let res = await fetch(api);
-            if(!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
-            const data = await res.json();
+            const data = await fetchYTPlaylistData(listId);
             
             ytPlaylistsData.push({ id: listId, name: data.name || "YT Playlist" });
             localStorage.setItem('tv_yt_playlists', JSON.stringify(ytPlaylistsData));
@@ -529,18 +545,16 @@
             document.getElementById('countrySelect').value = 'ytpl_' + listId;
             document.getElementById('ytPlaylistUrl').value = '';
             changeCountry();
-        } catch(e) { alert("Liste çekilemedi. Bağlantıyı kontrol edin."); stat.innerText = "Hata"; }
+        } catch(e) { alert("Liste çekilemedi. YouTube sunuculara anlık erişim engeli uyguluyor olabilir, birazdan tekrar deneyin."); stat.innerText = "Hata"; }
     }
 
+    // GÜNCELLENDİ: Playlist'i Oynatıcıya Yükleme
     async function loadYTPlaylistFromId(listId) {
-         const stat = document.getElementById('status'); stat.innerText = "YouTube listesi yükleniyor...";
-         currentListContext = 'ytpl_' + listId; // Zimmet için Context Güncellendi
+         const stat = document.getElementById('status'); stat.innerText = "Videolar yükleniyor...";
+         currentListContext = 'ytpl_' + listId; 
          
          try {
-            const api = `https://pipedapi.kavin.rocks/playlists/${listId}`;
-            let res = await fetch(api);
-            if(!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
-            const data = await res.json();
+            const data = await fetchYTPlaylistData(listId);
             
             const newChannels = []; let startIndex = 0;
             data.relatedStreams.forEach(vid => {
@@ -558,7 +572,7 @@
             
             if(allChannels.length) { curIdx = -1; document.getElementById('previewTitle').innerText = "Kanal Seçin"; }
             stat.innerText = data.name + " Yüklendi!"; showOSD("Liste Yüklendi", data.relatedStreams.length + " video bulundu");
-         } catch(e) { stat.innerText = "Hata: YT Listesi açılamadı"; }
+         } catch(e) { stat.innerText = "Hata: YT Listesi açılamadı"; showOSD("Hata", "Sunucular yanıt vermedi");}
     }
 
     window.addEventListener('DOMContentLoaded', () => {
