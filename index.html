@@ -107,7 +107,7 @@
         .osd-title.show { opacity: 1; }
         
         /* Cast Butonu Renk Ayarı */
-        google-cast-launcher { --connected-color: #2ecc71; --disconnected-color: white; cursor: pointer; width: 30px; height: 30px; }
+        google-cast-launcher { --connected-color: #2ecc71; --disconnected-color: white; width: 30px; height: 30px; }
 
         @media (max-width: 768px) {
             #leftSidebar, #rightSidebar { width: 85%; }
@@ -165,17 +165,17 @@
     
     <div class="settings-content">
 
-        <!-- KULLANICININ İSTEDİĞİ MASAÜSTÜ CAST KUTUSU -->
-        <div id="castBox" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s;">
+        <!-- KUTUNUN TAMAMI TIKLANABİLİR HALE GETİRİLDİ (onclick eklendi) -->
+        <div id="castBox" onclick="triggerCast()" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s; cursor: pointer;">
             <div>
                 <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
                 <span id="connStatus" style="font-size:0.8rem; color:#aaa;">Bağlantı Bekleniyor...</span>
             </div>
-            <!-- Orijinal google bileşenini buraya koyuyoruz -->
-            <google-cast-launcher></google-cast-launcher>
+            <!-- İkona tıklamayı iptal edip, tıklamayı ana kutuya (castBox) devrediyoruz -->
+            <google-cast-launcher style="pointer-events: none;"></google-cast-launcher>
         </div>
         
-        <!-- ÇİFT EKRAN (DUAL PLAY) MODÜLÜ (Bağlanınca görünür) -->
+        <!-- ÇİFT EKRAN (DUAL PLAY) MODÜLÜ -->
         <div id="dualPlayContainer" style="display: none; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px;">
             <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
             <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px;">Kapalı</button>
@@ -309,6 +309,28 @@
         if(curIdx === -1) return; const ch = allChannels[curIdx]; toggleFavorite(new Event('click'), ch.id); updateMainFavBtn(); showOSD(ch.isFavorite ? "Favorilere Eklendi" : "Favorilerden Çıkarıldı", ch.name);
     }
 
+    // --- KUTUYA TIKLAYINCA ÇALIŞAN MANUEL ARAMA FONKSİYONU ---
+    function triggerCast() {
+        if (typeof cast === 'undefined' || !cast.framework) {
+            alert("Yansıtma motoru henüz yüklenmedi veya tarayıcınız (Safari vb.) yerleşik yansıtmayı desteklemiyor. Lütfen Chrome kullanın.");
+            return;
+        }
+        
+        const context = cast.framework.CastContext.getInstance();
+        
+        if (context.getCurrentSession()) {
+            if (confirm("TV bağlantısını kesmek istiyor musunuz?")) {
+                context.endCurrentSession(true);
+            }
+        } else {
+            context.requestSession().then(() => {
+                closeAllDrawers();
+            }).catch((err) => {
+                console.log('Bağlantı iptal edildi veya hata oluştu.', err);
+            });
+        }
+    }
+
     // --- CAST MOTORU VE UI KONTROLLERİ ---
     window['__onGCastApiAvailable'] = function(isAvailable) {
         if (isAvailable) {
@@ -323,12 +345,10 @@
                 const dpCont = document.getElementById('dualPlayContainer');
                 const dpBtn = document.getElementById('dualPlayToggleBtn');
                 
-                // MASAÜSTÜ TASARIMI UI GÜNCELLEMELERİ
                 const connStatus = document.getElementById('connStatus');
                 const castBox = document.getElementById('castBox');
                 
                 if (remotePlayer.isConnected) { 
-                    // BAĞLANDI
                     document.getElementById('pStatus').innerText = "TV'ye Bağlı"; 
                     
                     connStatus.innerText = "TV'ye Bağlı";
@@ -338,7 +358,6 @@
                     dpCont.style.display = 'flex'; 
                     if(curIdx !== -1) play(curIdx, 0); 
                 } else { 
-                    // BAĞLANTI KOPTU
                     document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; 
                     
                     connStatus.innerText = "Bağlantı Bekleniyor...";
