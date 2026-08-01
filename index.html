@@ -224,7 +224,6 @@
     let autoPlayDirection = 1; 
     let isErrorHandling = false;
     
-    // YENİ: Oturum (Session) Takip Sistemi (Sahte hata sinyallerini reddetmek için)
     let currentPlaySession = 0;
     
     let globalIdCounter = Date.now();
@@ -238,9 +237,8 @@
         if (customChannelsData.length > 0) {
             allChannels = customChannelsData;
             
-            // YENİ: Hafızadaki eski (ID'siz) listeleri iyileştirme yaması
             allChannels.forEach((c, index) => {
-                if (!c.id) c.id = 'ch_' + (globalIdCounter++); // Eski kanallara zorla yeni kimlik bas
+                if (!c.id) c.id = 'ch_' + (globalIdCounter++); 
                 if (c.originalIndex === undefined) c.originalIndex = index;
                 c.broken = brokenUrls.includes(c.url);
             });
@@ -257,8 +255,10 @@
         vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow');
         vid.addEventListener('playing', () => document.getElementById('playIcon').innerText = 'pause');
         
-        // Eskiden burada genel bir hata yakalayıcı vardı, onu sildik! 
-        // Artık hataları sadece aktif olan oturumun içinden (playLocally) dinliyoruz.
+        vid.addEventListener('error', () => {
+            if (!vid.currentSrc || vid.currentSrc === window.location.href) return;
+            handleStreamError(currentPlaySession); 
+        }); 
     });
 
     // --- ARAYÜZ KONTROLLERİ ---
@@ -373,9 +373,8 @@
 
     function performSearch() { const term = document.getElementById('filterInput').value.toLowerCase(); const items = document.querySelectorAll('.channel-item'); items.forEach(item => { const name = item.querySelector('.name').innerText.toLowerCase(); item.style.display = name.includes(term) ? 'flex' : 'none'; }); }
 
-    // --- YENİ: OTURUM KONTROLLÜ (GÜVENLİ) OTO-ATLAMA ---
+    // --- 1.5 SANİYELİK BEKLEMELİ (STABİL) OTO-ATLAMA ---
     function handleStreamError(sessionToken) {
-        // Eğer gelen hata şimdiki oturuma ait değilse (eski kanaldan gelen gecikmeli hataysa) tamamen yoksay!
         if (sessionToken !== undefined && sessionToken !== currentPlaySession) return;
         
         if(isErrorHandling || curIdx === -1) return;
@@ -390,7 +389,7 @@
             localStorage.setItem('tv_broken', JSON.stringify(brokenUrls));
         }
 
-        showOSD("Yayın Alınamadı", "Atlanıyor..."); 
+        showOSD("Yayın Alınamadı", "1.5 sn içinde atlanıyor..."); 
         document.getElementById('pStatus').innerText = "Atlanıyor";
         
         const dir = (autoPlayDirection === -1) ? -1 : 1; 
@@ -406,20 +405,21 @@
         
         sortAndRenderList(); 
         
-        if (attempts < allChannels.length) {
-            const newNextIdx = allChannels.findIndex(c => c.id === nextIdToPlay);
-            if (newNextIdx !== -1) play(newNextIdx, dir);
-        } else { 
-            showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); 
-        }
-
-        setTimeout(() => { isErrorHandling = false; }, 500);
+        // DEDİĞİNİZ GİBİ: Bekleme süresini 1.5 saniye olarak geri getirdim
+        setTimeout(() => {
+            isErrorHandling = false;
+            if (attempts < allChannels.length) {
+                const newNextIdx = allChannels.findIndex(c => c.id === nextIdToPlay);
+                if (newNextIdx !== -1) play(newNextIdx, dir);
+            } else { 
+                showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); 
+            }
+        }, 1500);
     }
 
     function play(idx, dir = 0) {
         if(idx < 0 || idx >= allChannels.length) return;
         
-        // YENİ KANAL AÇILIRKEN YENİ OTURUM ŞİFRESİ OLUŞTURULUR
         currentPlaySession++; 
         let mySession = currentPlaySession; 
 
@@ -445,7 +445,6 @@
     function playLocally(url, sessionToken) {
         const video = document.getElementById('localPlayer'); document.getElementById('castOnlyScreen').style.display = 'none'; 
         
-        // Eski hata dinleyicilerini sıfırla
         video.onerror = null; 
         if (hls) { hls.destroy(); hls = null; }
         
@@ -469,7 +468,6 @@
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = url; 
             
-            // Sadece bu oturuma özel hata dinleyici
             video.onerror = function() { handleStreamError(sessionToken); };
 
             video.addEventListener('loadedmetadata', function() { 
