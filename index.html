@@ -7,7 +7,10 @@
     <meta name="theme-color" content="#000000">
     <title>TV Cast - Smart Player OS</title>
     
+    <!-- HLS.js Oynatıcı Motoru -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
     
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -18,10 +21,14 @@
         
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; width: 100vw; overflow: hidden; user-select: none; }
 
-        /* --- ANA OYNATICI --- */
+        /* --- ANA OYNATICI (HİBRİT YAPI) --- */
         #playerWrapper { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: flex; flex-direction: column; z-index: 1; }
         video#localPlayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 2; }
         video::cue { background-color: rgba(0, 0, 0, 0.8); color: white; font-size: 1.2rem; } 
+        
+        /* YouTube Konteyneri (Görünmez Kalkan Altında) */
+        #ytContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; background: #000; display: none; pointer-events: none; /* Tıklamaları çalmamasını sağlar */ }
+        #ytContainer iframe { width: 100%; height: 100%; border: none; }
 
         /* --- TV'DE OYNATILIYOR EKRANI --- */
         #castOnlyScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a1c23 0%, #000 100%); z-index: 3; display: none; flex-direction: column; align-items: center; justify-content: center; color: #aaa; pointer-events: none; }
@@ -162,8 +169,7 @@
                     if(remotePlayer.isConnected) { 
                         document.getElementById('playIcon').innerText = remotePlayer.isPaused ? 'play_arrow' : 'pause'; 
                         if (isDualPlayActive) { 
-                            const vid = document.getElementById('localPlayer'); 
-                            if (remotePlayer.isPaused) vid.pause(); else vid.play(); 
+                            toggleLocalPlaybackStatus(remotePlayer.isPaused);
                         } 
                     }
                 });
@@ -176,7 +182,13 @@
 <body>
 
 <div id="playerWrapper">
+    <!-- Standart M3U8 ve MP4 Oynatıcı -->
     <video id="localPlayer" playsinline crossorigin="anonymous"></video>
+    
+    <!-- YouTube Oynatıcı (Hibrit) -->
+    <div id="ytContainer">
+        <div id="ytPlayer"></div>
+    </div>
 
     <div id="castOnlyScreen">
         <i class="material-icons-round">cast_connected</i>
@@ -270,7 +282,7 @@
                 <input type="text" id="singleLogo" placeholder="Logo Linki (İsteğe bağlı)" style="margin-top:10px;">
                 <button class="btn" style="width:100%; margin-top:10px; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Kalıcı Olarak Ekle</button>
                 <div style="font-size:0.7rem; color:#aaa; margin-top:10px; line-height: 1.4;">
-                    <b>Bilgi:</b> Ham <b>.m3u8</b> veya canlı <b>YouTube</b> linklerini ekleyebilirsiniz. Özel eklenen kanallar için bağlantı hata toleransı (5 sn) artırılmıştır.
+                    <b>Bilgi:</b> Ham <b>.m3u8</b> veya canlı <b>YouTube</b> linklerini ekleyebilirsiniz. YouTube linkleri sistemin Hibrit iFrame motoru ile hiçbir kesintiye uğramadan, doğrudan YouTube sunucularından çalıştırılacaktır.
                 </div>
             </div>
         </div>
@@ -340,6 +352,78 @@
     
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
 
+    // --- YOUTUBE HİBRİT API DEĞİŞKENLERİ ---
+    let ytPlayer = null;
+    let isYtApiReady = false;
+
+    // YouTube API Hazır Olduğunda Çağrılır
+    function onYouTubeIframeAPIReady() {
+        isYtApiReady = true;
+        ytPlayer = new YT.Player('ytPlayer', {
+            height: '100%',
+            width: '100%',
+            videoId: '',
+            playerVars: {
+                'autoplay': 1,
+                'controls': 0, // Kontrolleri gizler, bizim arayüz devreye girer
+                'disablekb': 1,
+                'fs': 0,
+                'modestbranding': 1,
+                'rel': 0,
+                'playsinline': 1,
+                'showinfo': 0
+            },
+            events: {
+                'onStateChange': onYtPlayerStateChange,
+                'onError': onYtPlayerError
+            }
+        });
+    }
+
+    function onYtPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.PLAYING) {
+            document.getElementById('playIcon').innerText = 'pause';
+            document.getElementById('pStatus').innerText = "Cihazda İzleniyor (YT)";
+        } else if (event.data === YT.PlayerState.PAUSED) {
+            document.getElementById('playIcon').innerText = 'play_arrow';
+        }
+    }
+
+    function onYtPlayerError(event) {
+        // YouTube API Hata Kodları (Örn: Yayın gizli, kısıtlamalı vs.)
+        handleStreamError(currentPlaySession);
+    }
+
+    function extractYTId(url) {
+        if (!url) return null;
+        if(url.includes('youtube.com') || url.includes('youtu.be')) {
+            try {
+                if (url.includes("youtu.be/")) return url.split("youtu.be/")[1].split("?")[0];
+                if (url.includes("/live/")) return url.split("/live/")[1].split("?")[0];
+                if (url.includes("v=")) return new URLSearchParams(url.substring(url.indexOf('?'))).get("v");
+            } catch(e) {}
+        }
+        return null;
+    }
+    // ----------------------------------------
+
+    // --- KLAVYE DESTEĞİ (Sağ/Sol Ok Tuşları) ---
+    document.addEventListener('keydown', (e) => {
+        // Eğer kullanıcı input veya arama kutusuna yazı yazıyorsa ok tuşları kanalı değiştirmesin
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        if (e.key === 'ArrowRight') {
+            nextCh();
+        } else if (e.key === 'ArrowLeft') {
+            prevCh();
+        } else if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault(); // Sayfanın aşağı kaymasını önler
+            togglePlayPause();
+        }
+    });
+    // --------------------------------------------
+
+
     function triggerCustomCast() {
         if (typeof cast === 'undefined' || !cast.framework) {
             showOSD("Uyarı", "Tarayıcınız Cast desteklemiyor (Chrome kullanın).");
@@ -398,24 +482,9 @@
         
         if(!name || !url) { alert("Lütfen kanal adı ve yayın linkini girin."); return; }
         
-        if(url.includes('youtube.com') || url.includes('youtu.be')) {
-            let videoId = null;
-            if (url.includes("youtu.be/")) {
-                videoId = url.split("youtu.be/")[1].split("?")[0];
-            } else if (url.includes("/live/")) {
-                videoId = url.split("/live/")[1].split("?")[0];
-            } else if (url.includes("v=")) {
-                const params = new URLSearchParams(url.substring(url.indexOf('?')));
-                videoId = params.get("v");
-            }
-            
-            if(videoId) {
-                url = `https://yt.lemnoslife.com/noKey/playlist?videoId=${videoId}`;
-                alert("YouTube linki algılandı! Özel kanal toleransı ile listeye ekleniyor.");
-            } else {
-                alert("Hata: YouTube linkinden video ID'si çıkarılamadı.");
-                return;
-            }
+        // Hibrit Mimari ile YouTube linkleri artık dönüştürülmeden RAW olarak kaydedilir.
+        if(extractYTId(url)) {
+            alert("YouTube linki algılandı! Hibrit oynatıcı sayesinde yayın kendi orijinal altyapısıyla (kesintisiz) çalışacaktır.");
         } 
         else if(!url.includes('.m3u8') && !url.includes('.mp4')) {
             alert("Bilgi: Girdiğiniz link standart bir web sitesine veya desteklenmeyen formata benziyor. Çalışmayabilir.");
@@ -529,10 +598,31 @@
     function togglePlayPause() { 
         if (remotePlayer && remotePlayer.isConnected) { 
             remoteController.playOrPause(); 
-            if (isDualPlayActive) { const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); } 
+            if (isDualPlayActive) { 
+                toggleLocalPlaybackStatus();
+            } 
         } else { 
-            const vid = document.getElementById('localPlayer'); if (vid.paused) vid.play(); else vid.pause(); 
+            toggleLocalPlaybackStatus();
         } 
+    }
+
+    function toggleLocalPlaybackStatus(forcePause = null) {
+        const ytContainer = document.getElementById('ytContainer');
+        const vid = document.getElementById('localPlayer');
+        
+        if (ytContainer.style.display === 'block' && ytPlayer) {
+            if (forcePause === true || ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                ytPlayer.pauseVideo();
+            } else if (forcePause === false || ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                ytPlayer.playVideo();
+            }
+        } else {
+            if (forcePause === true || !vid.paused) {
+                vid.pause();
+            } else if (forcePause === false || vid.paused) {
+                vid.play();
+            }
+        }
     }
 
     function doWebSearch() {
@@ -602,6 +692,9 @@
 
     function testStreamBackground(url) {
         return new Promise((resolve) => {
+            // YouTube linkleri test edilmeden başarılı sayılır çünkü IFrame API ile çalışır.
+            if(extractYTId(url)) { resolve(true); return; }
+
             const timeout = setTimeout(() => resolve(false), 4000); 
             if (Hls.isSupported() && url.includes('.m3u')) {
                 const tempHls = new Hls({ debug: false, autoStartLoad: false });
@@ -735,7 +828,7 @@
 
         isErrorHandling = true; 
         
-        // ÖZEL KANAL MANTIĞI: ch_ex_ ile başlayan özel kanallar için daha fazla bekle ve kara listeye alma
+        // ÖZEL KANAL MANTIĞI: ch_ex_ ile başlayan özel kanallar için 5 sn bekle ve kara listeye alma
         const isCustom = ch.id.startsWith('ch_ex_');
         const waitTime = isCustom ? 5000 : 1500; 
 
@@ -789,55 +882,126 @@
         if (remotePlayer && remotePlayer.isConnected) {
             document.getElementById('pStatus').innerText = "TV'ye Aktarılıyor..."; showOSD(ch.name, "TV'de Oynatılıyor");
             if (!isDualPlayActive) stopLocally(); else playLocally(ch.url, mySession);
-            const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl'); media.metadata = new chrome.cast.media.GenericMediaMetadata(); media.metadata.title = ch.name;
-            if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; const req = new chrome.cast.media.LoadRequest(media); req.autoplay = true;
+            
+            // Cast cihazları YouTube açamaz, Cast için Lemnos API (m3u8) yedeği gönderilir
+            let castUrl = ch.url;
+            const ytIdForCast = extractYTId(castUrl);
+            if(ytIdForCast) castUrl = `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytIdForCast}`;
+
+            const media = new chrome.cast.media.MediaInfo(castUrl, 'application/x-mpegurl'); 
+            media.metadata = new chrome.cast.media.GenericMediaMetadata(); 
+            media.metadata.title = ch.name;
+            if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; 
+            const req = new chrome.cast.media.LoadRequest(media); req.autoplay = true;
             cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req).then(()=>{ document.getElementById('pStatus').innerText = isDualPlayActive ? "Cihazda & TV'de İzleniyor" : "TV'de İzleniyor"; }).catch(() => { handleStreamError(mySession); });
         } else { document.getElementById('pStatus').innerText = "Bağlanıyor..."; showOSD(ch.name); playLocally(ch.url, mySession); }
         resetControlsTimer();
     }
 
     function playLocally(url, sessionToken) {
-        const video = document.getElementById('localPlayer'); document.getElementById('castOnlyScreen').style.display = 'none'; 
+        const video = document.getElementById('localPlayer'); 
+        const ytContainer = document.getElementById('ytContainer');
+        document.getElementById('castOnlyScreen').style.display = 'none'; 
+        
         video.onerror = null; 
         if (hls) { hls.destroy(); hls = null; }
         
-        if (Hls.isSupported()) {
-            // HLS YÜKLEME SÜRELERİ ARTIRILDI (10 Saniye)
-            hls = new Hls({
-                manifestLoadingTimeOut: 10000,
-                manifestLoadingMaxRetry: 3,
-                levelLoadingTimeOut: 10000,
-                levelLoadingMaxRetry: 3
-            }); 
-            hls.on(Hls.Events.ERROR, function (event, data) { 
-                if (data.fatal) { 
-                    switch (data.type) { 
-                        case Hls.ErrorTypes.NETWORK_ERROR: 
-                        case Hls.ErrorTypes.MEDIA_ERROR: 
-                            handleStreamError(sessionToken); break; 
-                        default: 
-                            hls.destroy(); handleStreamError(sessionToken); break; 
+        const ytId = extractYTId(url);
+
+        // HİBRİT YÖNLENDİRİCİ: YouTube ise IFrame, Değilse HLS.js
+        if (ytId) {
+            // YOUTUBE MODU
+            video.style.display = 'none';
+            video.pause();
+            video.removeAttribute('src');
+            ytContainer.style.display = 'block';
+
+            if (isYtApiReady && ytPlayer) {
+                ytPlayer.loadVideoById(ytId);
+                document.getElementById('pStatus').innerText = "Cihazda İzleniyor (YT)";
+            } else {
+                // Eğer YouTube API henüz yüklenmediyse 1 saniye sonra tekrar dene
+                document.getElementById('pStatus').innerText = "YT Hazırlanıyor...";
+                setTimeout(() => playLocally(url, sessionToken), 1000);
+            }
+        } else {
+            // NORMAL IPTV (HLS) MODU
+            ytContainer.style.display = 'none';
+            if (isYtApiReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+                ytPlayer.pauseVideo();
+            }
+            video.style.display = 'block';
+
+            if (Hls.isSupported()) {
+                // HLS YÜKLEME SÜRELERİ (10 Saniye)
+                hls = new Hls({
+                    manifestLoadingTimeOut: 10000,
+                    manifestLoadingMaxRetry: 3,
+                    levelLoadingTimeOut: 10000,
+                    levelLoadingMaxRetry: 3
+                }); 
+                hls.on(Hls.Events.ERROR, function (event, data) { 
+                    if (data.fatal) { 
+                        switch (data.type) { 
+                            case Hls.ErrorTypes.NETWORK_ERROR: 
+                            case Hls.ErrorTypes.MEDIA_ERROR: 
+                                handleStreamError(sessionToken); break; 
+                            default: 
+                                hls.destroy(); handleStreamError(sessionToken); break; 
+                        } 
                     } 
-                } 
-            });
-            hls.loadSource(url); hls.attachMedia(video); 
-            hls.on(Hls.Events.MANIFEST_PARSED, function() { 
-                video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(sessionToken); } }); 
-            });
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = url; 
-            video.onerror = function() { handleStreamError(sessionToken); };
-            video.addEventListener('loadedmetadata', function() { 
-                video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(sessionToken); } }); 
-            }, { once: true });
+                });
+                hls.loadSource(url); hls.attachMedia(video); 
+                hls.on(Hls.Events.MANIFEST_PARSED, function() { 
+                    video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(sessionToken); } }); 
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url; 
+                video.onerror = function() { handleStreamError(sessionToken); };
+                video.addEventListener('loadedmetadata', function() { 
+                    video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Oynatmak İçin Tıklayın"; showOSD("Tarayıcı Engelledi", "Oynatmak için ekrana dokunun"); } else { handleStreamError(sessionToken); } }); 
+                }, { once: true });
+            }
         }
     }
 
-    function stopLocally() { const video = document.getElementById('localPlayer'); video.onerror = null; if (hls) { hls.destroy(); hls = null; } video.pause(); video.removeAttribute('src'); video.load(); document.getElementById('castOnlyScreen').style.display = 'flex'; if (curIdx !== -1) document.getElementById('castOnlyTitle').innerText = allChannels[curIdx].name; }
+    function stopLocally() { 
+        const video = document.getElementById('localPlayer'); 
+        const ytContainer = document.getElementById('ytContainer');
+        
+        video.onerror = null; 
+        if (hls) { hls.destroy(); hls = null; } 
+        video.pause(); 
+        video.removeAttribute('src'); 
+        video.load(); 
+        
+        ytContainer.style.display = 'none';
+        if (isYtApiReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') ytPlayer.stopVideo();
+
+        document.getElementById('castOnlyScreen').style.display = 'flex'; 
+        if (curIdx !== -1) document.getElementById('castOnlyTitle').innerText = allChannels[curIdx].name; 
+    }
+    
     function moveToNextWorking(dir) { if(!allChannels.length) return; let next = curIdx; let attempts = 0; do { next = next + dir; if (next >= allChannels.length) next = 0; if (next < 0) next = allChannels.length - 1; attempts++; } while (allChannels[next].broken && attempts < allChannels.length); if(attempts < allChannels.length) play(next, dir); else showOSD("Hata", "Çalışan hiçbir kanal bulunamadı"); }
     function nextCh() { moveToNextWorking(1); }
     function prevCh() { moveToNextWorking(-1); }
-    function toggleSubtitles() { subtitlesActive = !subtitlesActive; const btn = document.getElementById('ccBtn'); if(subtitlesActive) btn.classList.add('active'); else btn.classList.remove('active'); const video = document.getElementById('localPlayer'); let foundTrack = false; for (let i = 0; i < video.textTracks.length; i++) { video.textTracks[i].mode = subtitlesActive ? 'showing' : 'hidden'; foundTrack = true; } showOSD("Altyazı " + (subtitlesActive ? "Açık" : "Kapalı"), foundTrack ? "Yayın destekliyorsa görünecek" : "Bu yayında gömülü altyazı yok"); }
+    
+    function toggleSubtitles() { 
+        subtitlesActive = !subtitlesActive; 
+        const btn = document.getElementById('ccBtn'); 
+        if(subtitlesActive) btn.classList.add('active'); else btn.classList.remove('active'); 
+        
+        const video = document.getElementById('localPlayer'); 
+        let foundTrack = false; 
+        for (let i = 0; i < video.textTracks.length; i++) { 
+            video.textTracks[i].mode = subtitlesActive ? 'showing' : 'hidden'; 
+            foundTrack = true; 
+        } 
+        
+        // YouTube API'de altyazıyı JS ile doğrudan tetiklemek modül gerektirir, 
+        // bu yüzden OSD bilgisine ufak bir not düşüyoruz.
+        showOSD("Altyazı " + (subtitlesActive ? "Açık" : "Kapalı"), foundTrack ? "Yayın destekliyorsa görünecek" : "Bu yayında gömülü altyazı yok (YT hariç)"); 
+    }
 </script>
 
 </body>
