@@ -273,12 +273,10 @@
             <div id="mod-yt-playlist" class="module-body" style="display:none; border-top-color: rgba(232, 65, 24, 0.3);">
                 <input type="text" id="ytPlaylistUrl" placeholder="Liste Linki (youtube.com/playlist?list=...)">
                 <button class="btn" style="width:100%; margin-top:10px; background:#e84118; color:#fff; border-color:#e84118; font-weight:bold;" onclick="addYTPlaylist()">Listeyi Kaydet</button>
-                <div style="font-size:0.7rem; color:#aaa; margin-top:10px; line-height: 1.4;">
-                    <b>Bilgi:</b> Dizi, film veya müzik playlistleriniz otomatik olarak bir IPTV kanal listesi formatına dönüştürülür.
-                </div>
             </div>
         </div>
 
+        <!-- GÜNCELLENDİ: TEKİL KANAL & YOUTUBE ARAMA (ENGELSİZ MİMARİ) -->
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-single')">
                 <p class="module-title" style="color:var(--fav);">Tekil Kanal / YouTube Ara (Zimmetli)</p>
@@ -289,7 +287,6 @@
                     <span style="font-size:0.7rem; color:var(--fav); font-weight:bold;">Sadece Aktif Listeye Eklenir</span>
                 </div>
                 
-                <!-- YouTube Arama Kutusu -->
                 <div style="display:flex; gap:5px; margin-bottom:10px;">
                     <input type="text" id="ytSearchQuery" placeholder="YouTube'da Ara (Örn: Sözcü TV Canlı)" onkeydown="if(event.key === 'Enter') searchYouTube()">
                     <button class="btn" style="flex:0.4; background:#e84118; border-color:#e84118;" onclick="searchYouTube()"><i class="material-icons-round">search</i></button>
@@ -512,64 +509,42 @@
         showOSD("Kanal Eklendi", name + " sadece mevcut listeye sabitlendi.");
     }
 
-    // GÜNCELLENDİ: HİBRİT VE GÜÇLÜ YOUTUBE ARAMA MİMARİSİ (Piped + Invidious)
+    // YENİ MİMARİ: LEMNOSLIFE API İLE GARANTİLİ YOUTUBE ARAMA
     async function searchYouTube() {
         const query = document.getElementById('ytSearchQuery').value.trim();
         const resultsBox = document.getElementById('ytSearchResults');
         if(!query) return;
         
         resultsBox.style.display = 'block';
-        resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:#aaa; text-align:center;">YouTube sunucularında aranıyor...</div>';
+        resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:#aaa; text-align:center;">LemnosLife Sunucularında aranıyor...</div>';
         
-        // corsproxy.io'ya bağımlı olmayan, direkt çalışan Piped ve Invidious ağları
-        const servers = [
-            { type: 'invidious', url: `https://invidious.asir.dev/api/v1/search?q=${encodeURIComponent(query)}` },
-            { type: 'piped', url: `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=all` },
-            { type: 'invidious', url: `https://invidious.slipfox.xyz/api/v1/search?q=${encodeURIComponent(query)}` },
-            { type: 'piped', url: `https://pipedapi.tokhmi.xyz/search?q=${encodeURIComponent(query)}&filter=all` },
-            { type: 'piped', url: `https://api.piped.projectsegfau.lt/search?q=${encodeURIComponent(query)}&filter=all` }
-        ];
-        
-        let results = [];
-        
-        for (let srv of servers) {
-            try {
-                let res = await fetch(srv.url);
-                if (!res.ok) continue; // Bozuksa doğrudan diğerine geç
+        try {
+            // Yasal YouTube API taklidi, engellenmesi çok zor
+            const res = await fetch(`https://yt.lemnoslife.com/search?part=snippet&q=${encodeURIComponent(query)}&type=video,channel&maxResults=10`);
+            const data = await res.json();
+            
+            if(!data.items || data.items.length === 0) {
+                resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:var(--red); text-align:center;">Sonuç bulunamadı.</div>';
+                return;
+            }
+            
+            resultsBox.innerHTML = '';
+            data.items.forEach(item => {
+                if(!item.id || !item.id.videoId) return;
                 
-                let data = await res.json();
+                const title = item.snippet.title;
+                const url = "https://www.youtube.com/watch?v=" + item.id.videoId;
+                const thumb = item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '';
                 
-                if (srv.type === 'piped' && data.items && data.items.length > 0) {
-                    results = data.items.filter(i => i.type === 'stream').map(i => ({
-                        title: i.title,
-                        url: "https://www.youtube.com" + i.url,
-                        thumb: i.thumbnail
-                    }));
-                    break;
-                } else if (srv.type === 'invidious' && data.length > 0) {
-                    results = data.filter(i => i.type === 'video').map(i => ({
-                        title: i.title,
-                        url: "https://www.youtube.com/watch?v=" + i.videoId,
-                        thumb: i.videoThumbnails ? i.videoThumbnails[0].url : ''
-                    }));
-                    break;
-                }
-            } catch(e) { console.log("Atlanan sunucu:", srv.url); }
+                const div = document.createElement('div');
+                div.className = 'yt-search-item';
+                div.onclick = () => selectYtSearchResult(title, url, thumb);
+                div.innerHTML = `<img src="${thumb}" onerror="this.style.display='none'"> <span>${title}</span>`;
+                resultsBox.appendChild(div);
+            });
+        } catch(e) {
+            resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:var(--red); text-align:center;">API Bağlantısı engellendi.</div>';
         }
-        
-        if(!results.length) {
-            resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:var(--red); text-align:center;">Sonuç bulunamadı (Sunucular meşgul). Lütfen tekrar deneyin.</div>';
-            return;
-        }
-        
-        resultsBox.innerHTML = '';
-        results.slice(0, 10).forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'yt-search-item';
-            div.onclick = () => selectYtSearchResult(item.title, item.url, item.thumb);
-            div.innerHTML = `<img src="${item.thumb}" onerror="this.style.display='none'"> <span>${item.title}</span>`;
-            resultsBox.appendChild(div);
-        });
     }
 
     function selectYtSearchResult(title, url, thumbnail) {
@@ -580,49 +555,27 @@
         showOSD("Seçildi", "Kanal bilgileri forma dolduruldu. 'Aktif Listeye Ekle'ye basın.");
     }
 
-    // YENİ: TV CAST İÇİN CANLI M3U8 AKIŞI ÇÖZÜCÜ (Mi Stick Fix)
+    // YENİ MİMARİ: TV CAST İÇİN M3U8 ÇÖZÜCÜ (CodeTabs Proxy + Piped)
     async function getCastableUrl(url) {
         const ytId = extractYTId(url);
         if (!ytId) return { url: url, mime: 'application/x-mpegurl' };
         
-        const servers = [
-            `https://pipedapi.kavin.rocks/streams/${ytId}`,
-            `https://pipedapi.tokhmi.xyz/streams/${ytId}`,
-            `https://api.piped.projectsegfau.lt/streams/${ytId}`,
-            `https://pipedapi.adminforge.de/streams/${ytId}`
-        ];
+        // CodeTabs Proxy, çok güçlü ve engelsiz bir genel proxy servisidir.
+        const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(`https://pipedapi.kavin.rocks/streams/${ytId}`);
         
-        for (let api of servers) {
-            try {
-                let res = await fetch(api);
-                if (!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
-                if (res.ok) {
-                    let data = await res.json();
-                    if (data.hls) return { url: data.hls, mime: 'application/x-mpegurl' };
-                }
-            } catch(e) {}
-        }
+        try {
+            let res = await fetch(proxyUrl);
+            if (res.ok) {
+                let data = await res.json();
+                if (data.hls) return { url: data.hls, mime: 'application/x-mpegurl' };
+            }
+        } catch(e) { console.log("CodeTabs Proxy Başarısız"); }
+        
+        // Son çare (Lemnos Playlist Hack)
         return { url: `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytId}`, mime: 'application/x-mpegurl' };
     }
 
-    async function fetchYTPlaylistData(listId) {
-        const servers = [
-            `https://pipedapi.kavin.rocks/playlists/${listId}`,
-            `https://pipedapi.tokhmi.xyz/playlists/${listId}`,
-            `https://api.piped.projectsegfau.lt/playlists/${listId}`,
-            `https://pipedapi.adminforge.de/playlists/${listId}`
-        ];
-        
-        for (let api of servers) {
-            try {
-                let res = await fetch(api);
-                if (!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
-                if (res.ok) return await res.json();
-            } catch (e) { console.log("Sunucu atlandı:", api); }
-        }
-        throw new Error("Tüm Piped sunucuları engellendi");
-    }
-
+    // YENİ MİMARİ: LEMNOSLIFE API İLE GARANTİLİ YOUTUBE PLAYLIST ÇEKİMİ
     async function addYTPlaylist() {
         let url = document.getElementById('ytPlaylistUrl').value.trim();
         if(!url) return;
@@ -635,16 +588,23 @@
         
         if(!listId) { alert("Geçersiz YouTube Playlist linki."); return; }
         
-        const stat = document.getElementById('status'); stat.innerText = "Yedek sunuculardan liste aranıyor...";
+        const stat = document.getElementById('status'); stat.innerText = "LemnosLife'dan liste aranıyor...";
         try {
-            const data = await fetchYTPlaylistData(listId);
-            ytPlaylistsData.push({ id: listId, name: data.name || "YT Playlist" });
+            let listName = "YouTube Playlist";
+            // Önce listenin adını al
+            try {
+                let resInfo = await fetch(`https://yt.lemnoslife.com/playlists?part=snippet&id=${listId}`);
+                let infoData = await resInfo.json();
+                if (infoData.items && infoData.items.length > 0) listName = infoData.items[0].snippet.title;
+            } catch(e) {}
+            
+            ytPlaylistsData.push({ id: listId, name: listName });
             localStorage.setItem('tv_yt_playlists', JSON.stringify(ytPlaylistsData));
             updatePresetDropdown();
             document.getElementById('countrySelect').value = 'ytpl_' + listId;
             document.getElementById('ytPlaylistUrl').value = '';
             changeCountry();
-        } catch(e) { alert("Liste çekilemedi. YouTube sunuculara anlık erişim engeli uyguluyor olabilir."); stat.innerText = "Hata"; }
+        } catch(e) { alert("Liste çekilemedi."); stat.innerText = "Hata"; }
     }
 
     async function loadYTPlaylistFromId(listId) {
@@ -652,13 +612,25 @@
          currentListContext = 'ytpl_' + listId; 
          
          try {
-            const data = await fetchYTPlaylistData(listId);
+            // LemnosLife üzerinden liste videolarını çek (Doğrudan YT API formatında)
+            let res = await fetch(`https://yt.lemnoslife.com/playlistItems?part=snippet&playlistId=${listId}&maxResults=50`);
+            let data = await res.json();
+            
+            if(!data.items || data.items.length === 0) throw new Error("Boş");
+            
             const newChannels = []; let startIndex = 0;
-            data.relatedStreams.forEach(vid => {
-                let vidUrl = "https://www.youtube.com" + vid.url;
+            data.items.forEach(item => {
+                if(!item.snippet.resourceId || !item.snippet.resourceId.videoId) return;
+                
+                let title = item.snippet.title;
+                if(title === 'Private video' || title === 'Deleted video') return;
+                
+                let vidUrl = "https://www.youtube.com/watch?v=" + item.snippet.resourceId.videoId;
+                let thumb = item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '';
+                
                 newChannels.push({
-                    id: 'ch_' + (globalIdCounter++), originalIndex: startIndex++, name: vid.title,
-                    url: vidUrl, logo: vid.thumbnail, broken: brokenUrls.includes(vidUrl), isFavorite: favUrls.includes(vidUrl)
+                    id: 'ch_' + (globalIdCounter++), originalIndex: startIndex++, name: title,
+                    url: vidUrl, logo: thumb, broken: brokenUrls.includes(vidUrl), isFavorite: favUrls.includes(vidUrl)
                 });
             });
             
@@ -668,7 +640,7 @@
             sortAndRenderList();
             
             if(allChannels.length) { curIdx = -1; document.getElementById('previewTitle').innerText = "Kanal Seçin"; }
-            stat.innerText = data.name + " Yüklendi!"; showOSD("Liste Yüklendi", data.relatedStreams.length + " video bulundu");
+            stat.innerText = "Yüklendi!"; showOSD("Liste Yüklendi", allChannels.length + " video bulundu");
          } catch(e) { stat.innerText = "Hata: YT Listesi açılamadı"; showOSD("Hata", "Sunucular yanıt vermedi");}
     }
 
