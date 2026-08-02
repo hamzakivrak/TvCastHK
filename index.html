@@ -7,210 +7,114 @@
     <meta name="theme-color" content="#000000">
     <title>TV Cast - Smart Player OS</title>
     
-    <!-- Gerekli Kütüphaneler -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://www.youtube.com/iframe_api"></script>
     
-    <!-- MOBİL SÜRÜKLE BIRAK (DRAG & DROP) ALTYAPISI -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
     <script>
         MobileDragDrop.polyfill({ holdToDrag: 250 });
-        window.addEventListener('touchmove', function() {}, {passive: false});
+        window.addEventListener('touchmove', function(e) { if(e.target.className !== 'channel-list' && !e.target.closest('.channel-list') && !e.target.closest('.drawer')) { e.preventDefault(); } }, {passive: false});
     </script>
     
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     
     <style>
-        /* --- TEMEL AYARLAR --- */
-        :root { 
-            --bg: #000; --panel: #18191d; --surface: #23242a; 
-            --primary: #6c5ce7; --text: #fff; --border: #2d2e36; 
-            --red: #e74c3c; --fav: #f1c40f; 
-        }
+        :root { --bg: #000; --panel: #18191d; --surface: #23242a; --primary: #6c5ce7; --text: #fff; --border: #2d2e36; --red: #e74c3c; --fav: #f1c40f; }
         
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: var(--bg); 
-            color: var(--text); 
-            margin: 0; display: flex; 
-            height: 100vh; width: 100vw; 
-            overflow: hidden; user-select: none; 
-        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; width: 100vw; overflow: hidden; user-select: none; }
 
-        /* --- ANA OYNATICI (HİBRİT YAPI) --- */
-        #playerWrapper { 
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-            background: #000; display: flex; flex-direction: column; z-index: 1; 
-        }
-        
-        video#localPlayer { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            object-fit: contain; background: #000; z-index: 2; 
-        }
+        #playerWrapper { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: flex; flex-direction: column; z-index: 1; touch-action: none; }
+        video#localPlayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; z-index: 2; }
         video::cue { background-color: rgba(0, 0, 0, 0.8); color: white; font-size: 1.2rem; } 
         
-        #ytContainer { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            z-index: 2; background: #000; display: none; pointer-events: none; 
-        }
+        #ytContainer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; background: #000; display: none; pointer-events: none; }
         #ytContainer iframe { width: 100%; height: 100%; border: none; }
 
-        /* --- TV'DE OYNATILIYOR EKRANI --- */
-        #castOnlyScreen { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: radial-gradient(circle, #1a1c23 0%, #000 100%); 
-            z-index: 3; display: none; flex-direction: column; 
-            align-items: center; justify-content: center; 
-            color: #aaa; pointer-events: none; 
-        }
+        #castOnlyScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, #1a1c23 0%, #000 100%); z-index: 3; display: none; flex-direction: column; align-items: center; justify-content: center; color: #aaa; pointer-events: none; }
         #castOnlyScreen i { font-size: 64px; color: var(--primary); margin-bottom: 15px; opacity: 0.8; }
         #castOnlyTitle { color: #fff; margin: 0 0 10px 0; font-weight: 500; font-size: 1.5rem; text-align: center; padding: 0 20px; }
         #castOnlySubtitle { margin: 0; font-size: 0.9rem; letter-spacing: 1px; text-transform: uppercase; }
 
-        /* --- DOKUNMATİK ALANLAR --- */
-        .tap-zone { 
-            position: absolute; top: 0; bottom: 0; z-index: 10; 
-            display: flex; flex-direction: column; justify-content: flex-end; 
-            padding-bottom: 15vh; align-items: center; cursor: pointer; transition: background 0.3s; 
-        }
-        .tap-zone.left-zone { left: 0; width: 12%; background: linear-gradient(to right, rgba(0,0,0,0.3), transparent); }
+        /* DOKUNMATİK ALANLAR (ORTA KISIM ARTIK KONTROLLERİ BÜYÜTMEZ, SADECE EKRANI AÇAR) */
+        .tap-zone { position: absolute; top: 0; bottom: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; transition: background 0.3s; }
+        .tap-zone.left-zone { left: 0; width: 15%; background: linear-gradient(to right, rgba(0,0,0,0.3), transparent); }
         .tap-zone.left-zone:hover { background: linear-gradient(to right, rgba(0,0,0,0.6), transparent); }
-        .tap-zone.right-zone { right: 0; width: 12%; background: linear-gradient(to left, rgba(0,0,0,0.3), transparent); }
+        .tap-zone.right-zone { right: 0; width: 15%; background: linear-gradient(to left, rgba(0,0,0,0.3), transparent); }
         .tap-zone.right-zone:hover { background: linear-gradient(to left, rgba(0,0,0,0.6), transparent); }
-        .tap-zone.center-zone { left: 12%; right: 12%; width: 76%; z-index: 9; justify-content: center; padding-bottom: 0; }
+        .tap-zone.center-zone { left: 15%; right: 15%; width: 70%; z-index: 9; }
+        
         .zone-hint { color: rgba(255,255,255,0.4); transition: 0.3s; }
         .tap-zone:hover .zone-hint { color: rgba(255,255,255,0.9); transform: scale(1.2); }
-        .zone-hint i { font-size: 36px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+        .zone-hint i { font-size: 32px; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
 
-        /* --- KONTROLLER --- */
-        #controlsOverlay { 
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-            z-index: 15; pointer-events: none; display: flex; flex-direction: column; 
-            justify-content: space-between; opacity: 1; transition: opacity 0.4s ease; 
-            background: radial-gradient(circle, rgba(0,0,0,0.4) 0%, transparent 100%); 
-        }
+        #controlsOverlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 15; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; opacity: 1; transition: opacity 0.4s ease; background: transparent; }
         #controlsOverlay.hide { opacity: 0; pointer-events: none !important; }
         
-        .top-bar { 
-            padding: 20px 25px; display: flex; justify-content: space-between; 
-            align-items: flex-start; pointer-events: auto; 
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); 
-        }
+        .top-bar { padding: 20px 25px; display: flex; justify-content: space-between; align-items: flex-start; background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, transparent 100%); pointer-events: auto; }
         .top-title { font-weight: 600; font-size: 1.1rem; text-shadow: 0 2px 5px #000; display: flex; flex-direction: column; gap: 5px; }
         .status-badge { font-size: 0.75rem; color: var(--primary); font-weight: 500; letter-spacing: 1px; text-transform: uppercase; }
         
-        .center-buttons { 
-            display: flex; justify-content: center; align-items: center; gap: 20px; 
-            pointer-events: auto; position: absolute; top: 50%; left: 50%; 
-            transform: translate(-50%, -50%); width: 100%; max-width: 400px; 
-        }
-        .ctrl-btn { 
-            background: rgba(24, 25, 29, 0.7); border: 2px solid rgba(255,255,255,0.1); 
-            color: white; border-radius: 50%; cursor: pointer; display: flex; 
-            align-items: center; justify-content: center; width: 55px; height: 55px; 
-            backdrop-filter: blur(5px); transition: all 0.2s; flex-shrink: 0;
-        }
-        .ctrl-btn:hover { background: rgba(108, 92, 231, 0.8); border-color: var(--primary); transform: scale(1.1); }
-        .ctrl-btn.main { width: 80px; height: 80px; }
-        .ctrl-btn.small { width: 45px; height: 45px; background: rgba(24, 25, 29, 0.4); } 
-        .ctrl-btn.small.active { color: var(--primary); border-color: var(--primary); background: rgba(24, 25, 29, 0.8); }
+        /* ŞIK VE KOMPAKT ALT KONTROL BARI */
+        .center-buttons { display: flex; justify-content: center; align-items: center; gap: 15px; pointer-events: auto; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 15, 20, 0.75); padding: 10px 20px; border-radius: 40px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        .ctrl-btn { background: transparent; border: none; color: white; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; transition: all 0.2s; flex-shrink: 0; }
+        .ctrl-btn:hover { background: rgba(255,255,255,0.1); transform: scale(1.1); color: var(--primary); }
+        .ctrl-btn.main { width: 55px; height: 55px; background: var(--primary); box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4); }
+        .ctrl-btn.main:hover { background: #5a4bcf; color: #fff; transform: scale(1.1); }
+        .ctrl-btn.small { width: 40px; height: 40px; } 
+        .ctrl-btn.small.active { color: var(--primary); }
         
         .ctrl-btn.fav-btn i { transition: 0.3s; }
         .ctrl-btn.fav-btn.active i { color: var(--fav); text-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
-        .ctrl-btn i { font-size: 30px; }
-        .ctrl-btn.main i { font-size: 44px; }
+        .ctrl-btn i { font-size: 28px; }
+        .ctrl-btn.main i { font-size: 34px; }
         .ctrl-btn.small i { font-size: 22px; }
 
-        /* --- ÇEKMECELER --- */
-        .drawer { 
-            position: absolute; top: 0; bottom: 0; background: rgba(24, 25, 29, 0.95); 
-            backdrop-filter: blur(15px); z-index: 30; 
-            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); 
-            display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.05); 
-        }
+        .drawer { position: absolute; top: 0; bottom: 0; background: rgba(24, 25, 29, 0.95); backdrop-filter: blur(15px); z-index: 30; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.05); }
         #leftSidebar { left: 0; width: 350px; transform: translateX(-100%); border-right: 1px solid var(--border); overflow-y: auto; }
         #leftSidebar.open { transform: translateX(0); box-shadow: 10px 0 30px rgba(0,0,0,0.8); }
         #rightSidebar { right: 0; width: 320px; transform: translateX(100%); border-left: 1px solid var(--border); }
         #rightSidebar.open { transform: translateX(0); box-shadow: -10px 0 30px rgba(0,0,0,0.8); }
         
-        .drawer-header { 
-            position: sticky; top: 0; background: rgba(24, 25, 29, 1); 
-            padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); 
-            display: flex; justify-content: space-between; align-items: center; z-index: 31; 
-        }
+        .drawer-header { position: sticky; top: 0; background: rgba(24, 25, 29, 1); padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; z-index: 31; }
         
-        .overlay-backdrop { 
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-            background: rgba(0,0,0,0.6); z-index: 25; opacity: 0; 
-            pointer-events: none; transition: opacity 0.3s; 
-        }
+        .overlay-backdrop { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 25; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
         .overlay-backdrop.show { opacity: 1; pointer-events: auto; }
 
-        /* --- MODÜLLER --- */
         .settings-content { padding: 20px; }
         .module { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 15px; overflow: hidden; }
         .module-header { padding: 15px; background: rgba(255,255,255,0.03); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .module-title { font-size: 0.8rem; font-weight: 600; color: #fff; margin: 0; }
         .module-body { padding: 15px; border-top: 1px solid var(--border); }
         
-        input, textarea, select { 
-            width: 100%; background: #121212; border: 1px solid var(--border); 
-            color: #fff; border-radius: 8px; padding: 10px; 
-            box-sizing: border-box; font-family: inherit; margin-bottom:10px;
-        }
+        input, textarea, select { width: 100%; background: #121212; border: 1px solid var(--border); color: #fff; border-radius: 8px; padding: 10px; box-sizing: border-box; font-family: inherit; margin-bottom:10px; }
         textarea { resize: none; height: 60px; font-size: 0.8rem; }
         input:focus, textarea:focus, select:focus { border-color: var(--primary); outline: none; }
         
         .btn-group { display: flex; gap: 8px; }
-        .btn { 
-            flex: 1; height: 40px; font-size: 0.8rem; border: 1px solid var(--border); 
-            border-radius: 8px; background: #3d3e46; color: white; cursor: pointer; 
-            display: flex; align-items: center; justify-content: center; font-weight: 500;
-        }
+        .btn { flex: 1; height: 40px; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 8px; background: #3d3e46; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 500; }
         .btn:hover { opacity: 0.9; }
         .btn-icon { padding: 0 15px; background: #3d3e46; color: white; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
 
-        /* --- ALT MODÜLLER (GELİŞMİŞ AYARLAR İÇİN) --- */
         .sub-module { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .sub-module:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
         .sub-module-title { font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: 700; margin-bottom: 10px; display: block; }
 
-        /* --- YOUTUBE ARAMA SONUÇLARI --- */
-        .yt-search-results { 
-            max-height: 200px; overflow-y: auto; margin-top: 0px; 
-            border: 1px solid var(--border); border-radius: 8px; 
-            background: #121212; display: none; margin-bottom: 10px;
-        }
-        .yt-search-item { 
-            padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); 
-            display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.75rem; 
-        }
+        .yt-search-results { max-height: 200px; overflow-y: auto; margin-top: 0px; border: 1px solid var(--border); border-radius: 8px; background: #121212; display: none; margin-bottom: 10px; }
+        .yt-search-item { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.75rem; }
         .yt-search-item:hover { background: rgba(108, 92, 231, 0.2); }
         .yt-search-item img { width: 50px; height: 32px; object-fit: cover; border-radius: 4px; }
 
-        /* --- KANAL LİSTESİ VE DRAG & DROP --- */
         .channel-list { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
-        .channel-item { 
-            padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); 
-            cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; 
-            gap: 10px; color: #ddd; transition: background 0.2s, transform 0.2s; 
-            position: relative;
-        }
+        .channel-item { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; color: #ddd; transition: background 0.2s, transform 0.2s; position: relative; }
         .channel-item:hover { background: rgba(255,255,255,0.05); }
-        .channel-item.active { 
-            color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); 
-            border-left: 3px solid var(--primary); padding-left: 9px; 
-        }
+        .channel-item.active { color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); border-left: 3px solid var(--primary); padding-left: 9px; }
         .channel-item.broken { opacity: 0.4; }
         .channel-item.broken .name { text-decoration: line-through; }
         
-        .channel-item.dragging, .dnd-poly-drag-image { 
-            opacity: 0.7; background: rgba(108, 92, 231, 0.4); 
-            border: 1px dashed var(--primary); z-index: 999;
-        }
-        
+        .channel-item.dragging, .dnd-poly-drag-image { opacity: 0.7; background: rgba(108, 92, 231, 0.4); border: 1px dashed var(--primary); z-index: 999; }
         .drag-handle { color: #555; cursor: grab; font-size: 18px; padding: 2px; }
         .drag-handle:hover, .drag-handle:active { color: var(--primary); }
         
@@ -220,30 +124,24 @@
         .c-icon { width: 40px; height: 28px; border-radius: 5px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
         .c-icon img { width: 100%; height: 100%; object-fit: cover; }
         .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
         .fav-icon { color: #444; font-size: 20px; transition: 0.3s; padding: 4px; border-radius: 50%; }
         .fav-icon.active { color: var(--fav); text-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
-        
         .del-icon { color: rgba(231, 76, 60, 0.5); font-size: 20px; transition: 0.3s; padding: 4px; border-radius: 50%; margin-left: 2px; }
         .del-icon:hover { color: rgba(231, 76, 60, 1); background: rgba(231, 76, 60, 0.1); }
 
-        /* --- OSD EKRANI --- */
-        .osd-title { 
-            position: absolute; top: 15%; left: 50%; transform: translateX(-50%); 
-            background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; 
-            border-radius: 30px; font-size: 1.2rem; font-weight: 500; 
-            opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; 
-            border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
-            white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center;
-        }
+        .osd-title { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 12px 30px; border-radius: 30px; font-size: 1.2rem; font-weight: 500; opacity: 0; transition: opacity 0.3s ease; z-index: 20; pointer-events: none; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; text-align: center; }
         .osd-title.show { opacity: 1; }
         
         @media (max-width: 768px) {
             #leftSidebar, #rightSidebar { width: 85%; }
-            .center-buttons { gap: 15px; }
-            .ctrl-btn { width: 45px; height: 45px; }
-            .ctrl-btn.main { width: 65px; height: 65px; }
+            .center-buttons { bottom: 20px; padding: 8px 15px; }
+            .ctrl-btn { width: 40px; height: 40px; }
+            .ctrl-btn.main { width: 50px; height: 50px; }
+            .ctrl-btn i { font-size: 26px; }
         }
+
+        /* BASİT MOD UYARISI */
+        #simpleModeAlert { display: none; padding: 15px; background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71; color: #2ecc71; border-radius: 12px; margin-bottom: 15px; text-align: center; font-size: 0.85rem; line-height: 1.4; }
     </style>
 
     <!-- CHROMECAST FRAMEWORK -->
@@ -271,7 +169,6 @@
                         castBox.style.borderColor = "#2ecc71";
                         customCastIcon.innerText = "cast_connected";
                         customCastIcon.style.color = "#2ecc71";
-                        
                         if(curIdx !== -1) play(curIdx, 0); 
                     } else { 
                         document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; 
@@ -280,7 +177,6 @@
                         castBox.style.borderColor = "var(--primary)";
                         customCastIcon.innerText = "cast";
                         customCastIcon.style.color = "var(--primary)";
-                        
                         isDualPlayActive = false; 
                         document.getElementById('dualPlayToggleBtn').innerText = "Kapalı";
                         document.getElementById('dualPlayToggleBtn').style.background = "#3d3e46";
@@ -298,7 +194,6 @@
         };
     </script>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-
 </head>
 <body>
 
@@ -326,27 +221,16 @@
         </div>
         
         <div class="center-buttons">
-            <button class="ctrl-btn small" id="ccBtn" onclick="toggleSubtitles()" title="Altyazıyı Aç/Kapat">
-                <i class="material-icons-round">closed_caption</i>
-            </button>
-            <button class="ctrl-btn" onclick="prevCh()">
-                <i class="material-icons-round">skip_previous</i>
-            </button>
-            <button class="ctrl-btn main" id="playPauseBtn" onclick="togglePlayPause()">
-                <i class="material-icons-round" id="playIcon">play_arrow</i>
-            </button>
-            <button class="ctrl-btn" onclick="nextCh()">
-                <i class="material-icons-round">skip_next</i>
-            </button>
-            <button class="ctrl-btn small fav-btn" id="mainFavBtn" onclick="toggleMainFavorite()" title="Favoriye Ekle/Çıkar">
-                <i class="material-icons-round" id="mainFavIcon">star_border</i>
-            </button>
+            <button class="ctrl-btn small" id="ccBtn" onclick="toggleSubtitles()" title="Altyazıyı Aç/Kapat"><i class="material-icons-round">closed_caption</i></button>
+            <button class="ctrl-btn" onclick="prevCh()"><i class="material-icons-round">skip_previous</i></button>
+            <button class="ctrl-btn main" id="playPauseBtn" onclick="togglePlayPause()"><i class="material-icons-round" id="playIcon">play_arrow</i></button>
+            <button class="ctrl-btn" onclick="nextCh()"><i class="material-icons-round">skip_next</i></button>
+            <button class="ctrl-btn small fav-btn" id="mainFavBtn" onclick="toggleMainFavorite()" title="Favoriye Ekle"><i class="material-icons-round" id="mainFavIcon">star_border</i></button>
         </div>
-        <div style="height: 60px;"></div>
     </div>
 
-    <div class="tap-zone left-zone" onclick="openLeftSidebar()"><div class="zone-hint"><i class="material-icons-round">settings</i></div></div>
-    <div class="tap-zone right-zone" onclick="openRightSidebar()"><div class="zone-hint"><i class="material-icons-round">format_list_bulleted</i></div></div>
+    <div class="tap-zone left-zone" id="leftTapZone"><div class="zone-hint"><i class="material-icons-round">settings</i></div></div>
+    <div class="tap-zone right-zone" id="rightTapZone"><div class="zone-hint"><i class="material-icons-round">format_list_bulleted</i></div></div>
     <div class="tap-zone center-zone" onclick="toggleControls()"></div>
     <div id="overlayBackdrop" class="overlay-backdrop" onclick="closeAllDrawers()"></div>
 </div>
@@ -358,96 +242,105 @@
     </div>
     
     <div class="settings-content">
-        <!-- ANA BAĞLANTI (HER ZAMAN GÖRÜNÜR) -->
-        <div id="castBox" onclick="triggerCustomCast()" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s; cursor: pointer;">
-            <div>
-                <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
-                <span id="connStatus" style="font-size:0.8rem; color:#aaa;">Bağlantı Bekleniyor...</span>
-            </div>
-            <i class="material-icons-round" id="customCastIcon" style="color: var(--primary); font-size: 28px;">cast</i>
+        <div id="simpleModeAlert">
+            <strong>Basit Mod Aktif</strong><br>
+            Arayüz kilitlendi. Kanalları değiştirmek için ekranda parmağınızı <b>yukarı/aşağı kaydırın</b>.
+            <button class="btn" style="width:100%; margin-top:10px; background:#e74c3c; border-color:#e74c3c; font-weight:bold;" onclick="toggleSimpleMode()">Basit Moddan Çık</button>
         </div>
-        
-        <!-- HAZIR LİSTELER (HER ZAMAN GÖRÜNÜR) -->
-        <div class="module" style="margin-bottom: 25px;">
-            <div class="module-header" style="cursor:default;">
-                <p class="module-title">Aktif Liste</p>
-            </div>
-            <div class="module-body" style="padding-top:0; border:none;">
-                <select id="countrySelect" onchange="syncAndChangeCountry(this.value)" style="margin-bottom:0;">
-                    <optgroup label="Varsayılan Listeler">
-                        <option value="tr" selected>🇹🇷 Türkiye (Varsayılan)</option>
-                        <option value="us">🇺🇸 ABD</option>
-                        <option value="uk">🇬🇧 İngiltere</option>
-                        <option value="de">🇩🇪 Almanya</option>
-                    </optgroup>
-                    <optgroup label="Kişisel Listelerim" id="personalPresets"></optgroup>
-                    <optgroup label="YouTube Listeleri" id="ytPlaylistsGroup"></optgroup>
-                </select>
-                <button id="removePresetBtn" class="btn" style="width:100%; margin-top:10px; background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red); display:none;" onclick="removeCurrentPreset()">Bu Özel Listeyi Sil</button>
-                <div id="status" style="font-size:0.75rem; text-align:center; margin-top:10px; color:#2ecc71;">Liste Bekleniyor...</div>
-                
-                <div class="btn-group" style="margin-top:10px;">
-                    <button class="btn" id="scanBtn" style="background: rgba(241, 196, 15, 0.2); color: var(--fav); border-color: var(--fav);" onclick="scanAllChannels()">Hepsini Tara</button>
-                    <button class="btn" style="background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red);" onclick="resetToDefault()">Sıfırla</button>
+
+        <div id="normalSettingsWrapper">
+            <!-- ANA BAĞLANTI (HER ZAMAN GÖRÜNÜR) -->
+            <div id="castBox" onclick="triggerCustomCast()" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s; cursor: pointer;">
+                <div>
+                    <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
+                    <span id="connStatus" style="font-size:0.8rem; color:#aaa;">Bağlantı Bekleniyor...</span>
                 </div>
-            </div>
-        </div>
-        
-        <!-- GELİŞMİŞ AYARLAR BÖLÜMÜ (GİZLİ BAŞLAR) -->
-        <div class="module" style="background: transparent; border-color: rgba(255,255,255,0.1);">
-            <div class="module-header" onclick="toggleModule('mod-advanced')" style="background: rgba(255,255,255,0.05); border-radius: 8px;">
-                <p class="module-title" style="color:#aaa;">Gelişmiş Seçenekler</p>
-                <i class="material-icons-round icon-state" style="color:#aaa;">settings</i>
+                <i class="material-icons-round" id="customCastIcon" style="color: var(--primary); font-size: 28px;">cast</i>
             </div>
             
-            <div id="mod-advanced" class="module-body" style="display:none; padding: 15px 5px; border-top: none;">
+            <!-- HAZIR LİSTELER -->
+            <div class="module" style="margin-bottom: 25px;">
+                <div class="module-header" style="cursor:default;"><p class="module-title">Aktif Liste</p></div>
+                <div class="module-body" style="padding-top:0; border:none;">
+                    <select id="countrySelect" onchange="syncAndChangeCountry(this.value)" style="margin-bottom:0;">
+                        <optgroup label="Varsayılan Listeler">
+                            <option value="tr" selected>🇹🇷 Türkiye (Varsayılan)</option>
+                            <option value="us">🇺🇸 ABD</option>
+                            <option value="uk">🇬🇧 İngiltere</option>
+                            <option value="de">🇩🇪 Almanya</option>
+                        </optgroup>
+                        <optgroup label="Kişisel Listelerim" id="personalPresets"></optgroup>
+                        <optgroup label="YouTube Listeleri" id="ytPlaylistsGroup"></optgroup>
+                    </select>
+                    <button id="removePresetBtn" class="btn" style="width:100%; margin-top:10px; background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red); display:none;" onclick="removeCurrentPreset()">Bu Özel Listeyi Sil</button>
+                    <div id="status" style="font-size:0.75rem; text-align:center; margin-top:10px; color:#2ecc71;">Liste Bekleniyor...</div>
+                    <div class="btn-group" style="margin-top:10px;">
+                        <button class="btn" id="scanBtn" style="background: rgba(241, 196, 15, 0.2); color: var(--fav); border-color: var(--fav);" onclick="scanAllChannels()">Hepsini Tara</button>
+                        <button class="btn" style="background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red);" onclick="resetToDefault()">Sıfırla</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- GELİŞMİŞ AYARLAR BÖLÜMÜ -->
+            <div class="module" style="background: transparent; border-color: rgba(255,255,255,0.1);">
+                <div class="module-header" onclick="toggleModule('mod-advanced')" style="background: rgba(255,255,255,0.05); border-radius: 8px;">
+                    <p class="module-title" style="color:#aaa;">Gelişmiş Seçenekler</p>
+                    <i class="material-icons-round icon-state" style="color:#aaa;">settings</i>
+                </div>
                 
-                <!-- Çift Oynatma -->
-                <div class="sub-module" style="display: flex; align-items: center; justify-content: space-between;">
-                    <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
-                    <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px; margin:0;">Kapalı</button>
-                </div>
-
-                <!-- API Ayarı -->
-                <div class="sub-module">
-                    <span class="sub-module-title" style="color:#2ecc71;">YouTube API</span>
-                    <input type="password" id="userApiKey" placeholder="Google API Key">
-                    <button class="btn" style="width:100%; background:#2ecc71; border-color:#2ecc71; font-weight:bold;" onclick="saveApiKey()">Anahtarı Kaydet</button>
-                </div>
-
-                <!-- YouTube Playlist Ekleme -->
-                <div class="sub-module">
-                    <span class="sub-module-title" style="color:#e84118;">YouTube Playlist Ekle</span>
-                    <input type="text" id="ytPlaylistUrl" placeholder="Liste Linki (youtube.com/playlist?list=...)">
-                    <button class="btn" style="width:100%; background:#e84118; color:#fff; border-color:#e84118;" onclick="addYTPlaylist()">Listeyi Kaydet</button>
-                </div>
-
-                <!-- Tekil Kanal Arama/Ekleme -->
-                <div class="sub-module">
-                    <span class="sub-module-title" style="color:var(--fav);">Tekil Kanal / Arama</span>
-                    <div style="display:flex; gap:5px; margin-bottom:10px;">
-                        <input type="text" id="ytSearchQuery" placeholder="YouTube'da Ara" style="margin:0;" onkeydown="if(event.key === 'Enter') searchYouTube()">
-                        <button class="btn" style="flex:0.4; background:#e84118; border-color:#e84118; margin:0;" onclick="searchYouTube()"><i class="material-icons-round">search</i></button>
+                <div id="mod-advanced" class="module-body" style="display:none; padding: 15px 5px; border-top: none;">
+                    
+                    <!-- BASİT MOD AKTİVASYONU -->
+                    <div class="sub-module">
+                        <button class="btn" style="width:100%; background:#2ecc71; border-color:#2ecc71; font-weight:bold; height: 50px; font-size: 0.9rem;" onclick="toggleSimpleMode()">
+                            <i class="material-icons-round" style="margin-right: 8px;">accessibility_new</i> Basit Modu Aç
+                        </button>
+                        <p style="font-size: 0.7rem; color: #aaa; text-align: center; margin-top: 8px; line-height: 1.3;">Arayüzü kilitler ve sadece ekranı kaydırarak (swipe) kanal değiştirmenizi sağlar. Yaşlılar veya hızlı kullanım için idealdir.</p>
                     </div>
-                    <div id="ytSearchResults" class="yt-search-results"></div>
-                    <input type="text" id="singleName" placeholder="Kanal Adı">
-                    <input type="text" id="singleUrl" placeholder="Yayın Linki (.m3u8 veya YouTube Linki)">
-                    <input type="text" id="singleLogo" placeholder="Logo Linki (İsteğe bağlı)">
-                    <button class="btn" style="width:100%; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Aktif Listeye Ekle</button>
-                </div>
 
-                <!-- Manuel Liste Yükleme -->
-                <div class="sub-module" style="border-bottom:none; padding-bottom:0;">
-                    <span class="sub-module-title">Manuel M3U Linki Yükle</span>
-                    <textarea id="inputData" placeholder="Link veya içerik yapıştır..."></textarea>
-                    <input type="text" id="presetName" placeholder="Kaydetmek için isim ver (İsteğe bağlı)">
-                    <div class="btn-group">
-                        <button class="btn" style="flex: 0.5;" onclick="pasteClip()"><i class="material-icons-round">content_paste</i></button>
-                        <button class="btn" style="background:#2ecc71; border-color:#2ecc71;" onclick="manualLoad(true)">Ekle</button>
-                        <button class="btn" style="background:var(--primary); border-color:var(--primary);" onclick="manualLoad(false)">Değiştir</button>
+                    <!-- Çift Oynatma -->
+                    <div class="sub-module" style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
+                        <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px; margin:0;">Kapalı</button>
+                    </div>
+
+                    <!-- API Ayarı -->
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:#2ecc71;">YouTube API</span>
+                        <input type="password" id="userApiKey" placeholder="Google API Key">
+                        <button class="btn" style="width:100%; background:#2ecc71; border-color:#2ecc71; font-weight:bold;" onclick="saveApiKey()">Anahtarı Kaydet</button>
+                    </div>
+
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:#e84118;">YouTube Playlist Ekle</span>
+                        <input type="text" id="ytPlaylistUrl" placeholder="Liste Linki (youtube.com/playlist?list=...)">
+                        <button class="btn" style="width:100%; background:#e84118; color:#fff; border-color:#e84118;" onclick="addYTPlaylist()">Listeyi Kaydet</button>
+                    </div>
+
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:var(--fav);">Tekil Kanal / Arama</span>
+                        <div style="display:flex; gap:5px; margin-bottom:10px;">
+                            <input type="text" id="ytSearchQuery" placeholder="YouTube'da Ara" style="margin:0;" onkeydown="if(event.key === 'Enter') searchYouTube()">
+                            <button class="btn" style="flex:0.4; background:#e84118; border-color:#e84118; margin:0;" onclick="searchYouTube()"><i class="material-icons-round">search</i></button>
+                        </div>
+                        <div id="ytSearchResults" class="yt-search-results"></div>
+                        <input type="text" id="singleName" placeholder="Kanal Adı">
+                        <input type="text" id="singleUrl" placeholder="Yayın Linki (.m3u8 veya YouTube Linki)">
+                        <input type="text" id="singleLogo" placeholder="Logo Linki (İsteğe bağlı)">
+                        <button class="btn" style="width:100%; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Aktif Listeye Ekle</button>
+                    </div>
+
+                    <div class="sub-module" style="border-bottom:none; padding-bottom:0;">
+                        <span class="sub-module-title">Manuel M3U Linki Yükle</span>
+                        <textarea id="inputData" placeholder="Link veya içerik yapıştır..."></textarea>
+                        <input type="text" id="presetName" placeholder="Kaydetmek için isim ver (İsteğe bağlı)">
+                        <div class="btn-group">
+                            <button class="btn" style="flex: 0.5;" onclick="pasteClip()"><i class="material-icons-round">content_paste</i></button>
+                            <button class="btn" style="background:#2ecc71; border-color:#2ecc71;" onclick="manualLoad(true)">Ekle</button>
+                            <button class="btn" style="background:var(--primary); border-color:var(--primary);" onclick="manualLoad(false)">Değiştir</button>
+                        </div>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
@@ -473,17 +366,13 @@
         
         <div style="display: flex; gap: 8px;">
             <input type="text" id="filterInput" placeholder="Kanal ara..." onkeyup="performSearch()" style="flex: 1; padding: 8px; font-size: 0.85rem; margin: 0;">
-            <button class="btn-icon" onclick="resetQuarantine()" title="Karantinayı Temizle" style="padding: 0 10px; margin: 0; background: #3d3e46; display: flex; align-items: center; justify-content: center;">
-                <i class="material-icons-round" style="font-size: 20px;">restore</i>
-            </button>
+            <button class="btn-icon" onclick="resetQuarantine()" title="Karantinayı Temizle" style="padding: 0 10px; margin: 0; background: #3d3e46; display: flex; align-items: center; justify-content: center;"><i class="material-icons-round" style="font-size: 20px;">restore</i></button>
         </div>
     </div>
-    
     <div id="channelList" class="channel-list"></div>
 </div>
 
 <script>
-    // SUNUCU ADRESİNİZ (Otomatik Entegre Edildi)
     const MY_CLOUD_PROXY = "https://quiet-cell-a027.hamzakivrak.workers.dev/?url=";
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
     
@@ -499,6 +388,8 @@
     let globalIdCounter = Date.now();
     let currentListContext = DEFAULT_LIST;
     let draggedItemIndex = null;
+    
+    let isSimpleMode = localStorage.getItem('tv_simple_mode') === 'true';
 
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
@@ -514,7 +405,7 @@
         const key = document.getElementById('userApiKey').value.trim();
         localStorage.setItem('tv_yt_api_key', key);
         userYTApiKey = key;
-        showOSD("API Kaydedildi", "Google aramaları aktif edildi.");
+        showOSD("API Kaydedildi");
     }
 
     if (localStorage.getItem('tv_extras') && !localStorage.getItem('tv_extras_dict')) {
@@ -565,6 +456,77 @@
         else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); togglePlayPause(); }
     });
 
+    // --- SWIPE VE UZUN BASMA MANTIĞI ---
+    let touchStartY = 0;
+    let touchEndY = 0;
+    let longPressTimer;
+    
+    const pw = document.getElementById('playerWrapper');
+    pw.addEventListener('touchstart', e => { touchStartY = e.changedTouches[0].screenY; }, {passive: true});
+    pw.addEventListener('touchend', e => {
+        touchEndY = e.changedTouches[0].screenY;
+        const diff = touchStartY - touchEndY;
+        if (diff > 60) nextCh();      // Yukarı Fırlatma = Sonraki Kanal
+        else if (diff < -60) prevCh(); // Aşağı Fırlatma = Önceki Kanal
+    }, {passive: true});
+
+    const leftZone = document.getElementById('leftTapZone');
+    const rightZone = document.getElementById('rightTapZone');
+
+    function applySimpleModeState() {
+        if (isSimpleMode) {
+            rightZone.style.display = 'none'; // Sağ çekmece iptal
+            leftZone.onclick = null; // Normal tıklama iptal
+            
+            // 3 Saniye Basılı Tutma Mantığı
+            leftZone.addEventListener('touchstart', startLongPress, {passive: true});
+            leftZone.addEventListener('touchend', cancelLongPress, {passive: true});
+            leftZone.addEventListener('touchcancel', cancelLongPress, {passive: true});
+
+            document.getElementById('normalSettingsWrapper').style.display = 'none';
+            document.getElementById('simpleModeAlert').style.display = 'block';
+            
+            showOSD("Basit Mod Aktif", "Değiştirmek için parmağınızı kaydırın");
+        } else {
+            rightZone.style.display = 'flex';
+            leftZone.onclick = openLeftSidebar;
+            
+            leftZone.removeEventListener('touchstart', startLongPress);
+            leftZone.removeEventListener('touchend', cancelLongPress);
+            leftZone.removeEventListener('touchcancel', cancelLongPress);
+
+            document.getElementById('normalSettingsWrapper').style.display = 'block';
+            document.getElementById('simpleModeAlert').style.display = 'none';
+        }
+    }
+
+    function startLongPress(e) {
+        longPressTimer = setTimeout(() => {
+            openLeftSidebar();
+        }, 3000);
+    }
+    
+    function cancelLongPress(e) {
+        clearTimeout(longPressTimer);
+    }
+
+    function toggleSimpleMode() {
+        isSimpleMode = !isSimpleMode;
+        localStorage.setItem('tv_simple_mode', isSimpleMode);
+        applySimpleModeState();
+        
+        if (isSimpleMode) {
+            closeAllDrawers();
+            if (currentListContext !== DEFAULT_LIST && !document.getElementById('countrySelect').value.startsWith('ytpl_')) {
+                syncAndChangeCountry("tr");
+            }
+            if (curIdx === -1 && allChannels.length > 0) play(0, 1);
+        } else {
+            closeAllDrawers();
+            showOSD("Normal Mod Aktif", "Tüm menüler ve kontroller açık");
+        }
+    }
+
     function triggerCustomCast() {
         if (typeof cast === 'undefined' || !cast.framework) { showOSD("Uyarı", "Tarayıcınız Cast desteklemiyor."); return; }
         const context = cast.framework.CastContext.getInstance();
@@ -574,6 +536,7 @@
 
     function openLeftSidebar() { document.getElementById('leftSidebar').classList.add('open'); document.getElementById('overlayBackdrop').classList.add('show'); document.getElementById('controlsOverlay').classList.add('hide'); }
     function openRightSidebar() { 
+        if(isSimpleMode) return;
         document.getElementById('rightSidebar').classList.add('open'); document.getElementById('overlayBackdrop').classList.add('show'); document.getElementById('controlsOverlay').classList.add('hide');
         if(curIdx !== -1) { const activeItem = document.getElementById(`c-${curIdx}`); if(activeItem) setTimeout(() => { document.getElementById('channelList').scrollTo({ top: activeItem.offsetTop - 100, behavior: 'smooth' }); }, 100); } 
     }
@@ -738,6 +701,7 @@
         if (append) { allChannels = allChannels.concat(newChannels); } else { allChannels = newChannels; }
         injectExtraChannels(); const toSave = allChannels.filter(c => !c.id.startsWith('ch_ex_')); localStorage.setItem('tv_custom', JSON.stringify(toSave)); sortAndRenderList();
         if (allChannels.length && !append) { curIdx = -1; document.getElementById('previewTitle').innerText = "Kanal Seçin"; }
+        if (isSimpleMode && allChannels.length > 0 && curIdx === -1) { play(0, 1); }
     }
     
     function performSearch() { const term = document.getElementById('filterInput').value.toLowerCase(); const items = document.querySelectorAll('.channel-item'); items.forEach(item => { const name = item.querySelector('.name').innerText.toLowerCase(); item.style.display = name.includes(term) ? 'flex' : 'none'; }); }
@@ -850,10 +814,10 @@
             
             let castMediaUrl = ch.url; let mimeType = 'application/x-mpegurl';
             if (ytId) {
-                // SİHİRLİ DOKUNUŞ: Sadece listeyi değil, parçaları da proxy'den geçirmek için kendi proxy'mizi köprü yapıyoruz
+                // Chromecast'in YT limitini aşması için Proxy ve vnd.apple.mpegurl dönüşümü kullanılıyor
                 const rawLemnos = `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytId}`;
                 castMediaUrl = MY_CLOUD_PROXY + encodeURIComponent(rawLemnos);
-                mimeType = 'application/x-mpegurl';
+                mimeType = 'application/vnd.apple.mpegurl';
             }
             
             const media = new chrome.cast.media.MediaInfo(castMediaUrl, mimeType); media.metadata = new chrome.cast.media.GenericMediaMetadata(); media.metadata.title = ch.name; if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; 
@@ -883,7 +847,8 @@
 
     window.addEventListener('DOMContentLoaded', () => {
         updatePresetDropdown();
-        if (customChannelsData.length > 0) { allChannels = customChannelsData; allChannels.forEach((c, index) => { if (!c.id) c.id = 'ch_' + (globalIdCounter++); if (c.originalIndex === undefined) c.originalIndex = index; c.broken = brokenUrls.includes(c.url); }); injectExtraChannels(); sortAndRenderList(); document.getElementById('status').innerText = "Özel Liste Yüklendi"; } else { loadUrl(DEFAULT_LIST, "TR Listesi Hazır!"); }
+        applySimpleModeState();
+        if (customChannelsData.length > 0) { allChannels = customChannelsData; allChannels.forEach((c, index) => { if (!c.id) c.id = 'ch_' + (globalIdCounter++); if (c.originalIndex === undefined) c.originalIndex = index; c.broken = brokenUrls.includes(c.url); }); injectExtraChannels(); sortAndRenderList(); document.getElementById('status').innerText = "Özel Liste Yüklendi"; if(isSimpleMode && allChannels.length > 0) play(0, 1); } else { loadUrl(DEFAULT_LIST, "TR Listesi Hazır!", false); }
         resetControlsTimer();
         const vid = document.getElementById('localPlayer'); vid.addEventListener('play', () => document.getElementById('playIcon').innerText = 'pause'); vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow'); vid.addEventListener('error', () => { if (!vid.currentSrc || vid.currentSrc === window.location.href) return; handleStreamError(currentPlaySession); }); 
     });
