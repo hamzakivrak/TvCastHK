@@ -202,7 +202,6 @@
         .channel-item.broken { opacity: 0.4; }
         .channel-item.broken .name { text-decoration: line-through; }
         
-        /* Drag işlemi sırasında görsel geri bildirim */
         .channel-item.dragging, .dnd-poly-drag-image { 
             opacity: 0.7; background: rgba(108, 92, 231, 0.4); 
             border: 1px dashed var(--primary); z-index: 999;
@@ -211,7 +210,7 @@
         .drag-handle { 
             color: #555; cursor: grab; font-size: 18px; display: flex; 
             align-items: center; padding: 2px; transition: color 0.2s; 
-            touch-action: none; /* Mobilde scroll'u engeller, drag işlemine izin verir */
+            touch-action: none; 
         }
         .drag-handle:hover, .drag-handle:active { color: var(--primary); }
         
@@ -881,8 +880,9 @@
             
             let castMediaUrl = ch.url; let mimeType = 'application/x-mpegurl';
             if (ytId) {
-                // YENİ: TV'nin YouTube yayınını doğrudan m3u8 olarak açmasını sağlayan CodeTabs köprüsü
-                castMediaUrl = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent("https://yt.lemnoslife.com/noKey/playlist?videoId=" + ytId);
+                // TV'nin doğrudan oynatabileceği YouTube MP4 / WebM akış sarmalayıcısı
+                const rawLemnos = `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytId}`;
+                castMediaUrl = "https://quiet-cell-a027.hamzakivrak.workers.dev/?url=" + encodeURIComponent(rawLemnos);
                 mimeType = 'application/x-mpegurl';
             }
             const media = new chrome.cast.media.MediaInfo(castMediaUrl, mimeType); media.metadata = new chrome.cast.media.GenericMediaMetadata(); media.metadata.title = ch.name; if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; 
