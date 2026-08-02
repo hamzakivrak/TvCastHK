@@ -115,7 +115,7 @@
         .ctrl-btn.main i { font-size: 44px; }
         .ctrl-btn.small i { font-size: 22px; }
 
-        /* --- ÇEKMECELER (SIDEBARS) --- */
+        /* --- ÇEKMECELER --- */
         .drawer { 
             position: absolute; top: 0; bottom: 0; background: rgba(24, 25, 29, 0.95); 
             backdrop-filter: blur(15px); z-index: 30; 
@@ -177,20 +177,28 @@
         .yt-search-item:hover { background: rgba(108, 92, 231, 0.2); }
         .yt-search-item img { width: 50px; height: 32px; object-fit: cover; border-radius: 4px; }
 
-        /* --- KANAL LİSTESİ --- */
+        /* --- KANAL LİSTESİ VE DRAG & DROP --- */
         .channel-list { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
         .channel-item { 
-            padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); 
+            padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); 
             cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; 
-            gap: 12px; color: #ddd; transition: background 0.2s; 
+            gap: 10px; color: #ddd; transition: background 0.2s, transform 0.2s; 
+            position: relative;
         }
         .channel-item:hover { background: rgba(255,255,255,0.05); }
         .channel-item.active { 
             color: var(--primary); font-weight: 600; background: rgba(108, 92, 231, 0.1); 
-            border-left: 3px solid var(--primary); padding-left: 12px; 
+            border-left: 3px solid var(--primary); padding-left: 9px; 
         }
         .channel-item.broken { opacity: 0.4; }
         .channel-item.broken .name { text-decoration: line-through; }
+        .channel-item.dragging { opacity: 0.3; background: rgba(108, 92, 231, 0.3); border: 1px dashed var(--primary); }
+        
+        .drag-handle { 
+            color: #555; cursor: grab; font-size: 18px; display: flex; 
+            align-items: center; padding: 2px; transition: color 0.2s; 
+        }
+        .drag-handle:hover { color: var(--primary); }
         
         .broken-divider { 
             padding: 20px 15px 10px 15px; font-size: 0.7rem; font-weight: 700; 
@@ -200,17 +208,17 @@
         .broken-divider::before, .broken-divider::after { content: ""; flex: 1; height: 1px; background: rgba(231, 76, 60, 0.2); }
         
         .c-icon { 
-            width: 45px; height: 30px; border-radius: 5px; background: rgba(255,255,255,0.1); 
+            width: 40px; height: 28px; border-radius: 5px; background: rgba(255,255,255,0.1); 
             display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;
         }
         .c-icon img { width: 100%; height: 100%; object-fit: cover; }
         .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .fav-icon { color: #444; font-size: 20px; transition: 0.3s; padding: 5px; border-radius: 50%; }
+        .fav-icon { color: #444; font-size: 20px; transition: 0.3s; padding: 4px; border-radius: 50%; }
         .fav-icon.active { color: var(--fav); text-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
         .fav-icon:hover { background: rgba(255,255,255,0.1); }
         
-        .del-icon { color: rgba(231, 76, 60, 0.5); font-size: 20px; transition: 0.3s; padding: 5px; border-radius: 50%; margin-left: 5px; }
+        .del-icon { color: rgba(231, 76, 60, 0.5); font-size: 20px; transition: 0.3s; padding: 4px; border-radius: 50%; margin-left: 2px; }
         .del-icon:hover { color: rgba(231, 76, 60, 1); background: rgba(231, 76, 60, 0.1); }
 
         /* --- OSD EKRANI --- */
@@ -224,7 +232,6 @@
         }
         .osd-title.show { opacity: 1; }
         
-        /* MOBİL UYUM */
         @media (max-width: 768px) {
             #leftSidebar, #rightSidebar { width: 85%; }
             .center-buttons { gap: 15px; }
@@ -356,7 +363,7 @@
     </div>
     <div class="tap-zone center-zone" onclick="toggleControls()"></div>
     
-    <!-- ARKA PLAN GÖLGESİ (ÇEKMECELER İÇİN) -->
+    <!-- ARKA PLAN GÖLGESİ -->
     <div id="overlayBackdrop" class="overlay-backdrop" onclick="closeAllDrawers()"></div>
 </div>
 
@@ -405,7 +412,7 @@
                 <p class="module-title" style="color:white;">Hazır Listeler</p>
             </div>
             <div class="module-body" style="padding-top:0; border:none;">
-                <select id="countrySelect" onchange="changeCountry()">
+                <select id="countrySelect" onchange="syncAndChangeCountry(this.value)">
                     <optgroup label="Varsayılan Listeler">
                         <option value="tr" selected>🇹🇷 Türkiye (Varsayılan)</option>
                         <option value="us">🇺🇸 ABD</option>
@@ -437,13 +444,10 @@
             <div id="mod-yt-playlist" class="module-body" style="display:none; border-top-color: rgba(232, 65, 24, 0.3);">
                 <input type="text" id="ytPlaylistUrl" placeholder="Liste Linki (youtube.com/playlist?list=...)">
                 <button class="btn" style="width:100%; margin-top:10px; background:#e84118; color:#fff; border-color:#e84118; font-weight:bold;" onclick="addYTPlaylist()">Listeyi Kaydet</button>
-                <div style="font-size:0.7rem; color:#aaa; margin-top:10px; line-height: 1.4;">
-                    <b>Not:</b> Resmi Google API kullanılacaktır.
-                </div>
             </div>
         </div>
 
-        <!-- TEKİL KANAL & YOUTUBE ARAMA (ZİMMETLİ) -->
+        <!-- TEKİL KANAL & YOUTUBE ARAMA -->
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-single')">
                 <p class="module-title" style="color:var(--fav);">Tekil Kanal / YouTube Ara (Zimmetli)</p>
@@ -455,7 +459,7 @@
                 </div>
                 
                 <div style="display:flex; gap:5px; margin-bottom:10px;">
-                    <input type="text" id="ytSearchQuery" placeholder="YouTube'da Ara (Resmi API)" onkeydown="if(event.key === 'Enter') searchYouTube()">
+                    <input type="text" id="ytSearchQuery" placeholder="YouTube'da Ara" onkeydown="if(event.key === 'Enter') searchYouTube()">
                     <button class="btn" style="flex:0.4; background:#e84118; border-color:#e84118;" onclick="searchYouTube()"><i class="material-icons-round">search</i></button>
                 </div>
                 <div id="ytSearchResults" class="yt-search-results"></div>
@@ -500,18 +504,32 @@
     </div>
 </div>
 
-<!-- SAĞ MENÜ (KANAL LİSTESİ) -->
+<!-- SAĞ MENÜ (KANAL LİSTESİ VE HIZLI LİSTE SEÇİMİ) -->
 <div id="rightSidebar" class="drawer">
     <div class="drawer-header">
         <span style="color: white; font-weight: 600; font-size: 1.1rem;" id="listCountTitle">Kanallar</span>
         <i class="material-icons-round" onclick="closeAllDrawers()" style="color: var(--red); cursor: pointer; font-size: 24px;">close</i>
     </div>
     
-    <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; gap: 10px;">
-        <input type="text" id="filterInput" placeholder="Kanal ara..." onkeyup="performSearch()" style="flex: 1; padding: 8px; font-size: 0.85rem; margin: 0;">
-        <button class="btn-icon" onclick="resetQuarantine()" title="Karantinayı Temizle (Listeyi Orijinal Sırasına Döndür)" style="padding: 0 10px; margin: 0; background: #3d3e46; display: flex; align-items: center; justify-content: center;">
-            <i class="material-icons-round" style="font-size: 20px;">restore</i>
-        </button>
+    <!-- YENİ: KANAL LİSTESİ TEPESİNDE HAZIR LİSTE AÇILIR MENÜSÜ VE ARAMA -->
+    <div style="padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 8px;">
+        <select id="rightCountrySelect" onchange="syncAndChangeCountry(this.value)" style="padding: 8px; font-size: 0.85rem; border-color: rgba(108, 92, 231, 0.4); background: #1a1c23;">
+            <optgroup label="Varsayılan Listeler">
+                <option value="tr" selected>🇹🇷 Türkiye (Varsayılan)</option>
+                <option value="us">🇺🇸 ABD</option>
+                <option value="uk">🇬🇧 İngiltere</option>
+                <option value="de">🇩🇪 Almanya</option>
+            </optgroup>
+            <optgroup label="Kişisel Listelerim" id="personalPresetsRight"></optgroup>
+            <optgroup label="YouTube Listeleri" id="ytPlaylistsGroupRight"></optgroup>
+        </select>
+        
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="filterInput" placeholder="Kanal ara..." onkeyup="performSearch()" style="flex: 1; padding: 8px; font-size: 0.85rem; margin: 0;">
+            <button class="btn-icon" onclick="resetQuarantine()" title="Karantinayı Temizle" style="padding: 0 10px; margin: 0; background: #3d3e46; display: flex; align-items: center; justify-content: center;">
+                <i class="material-icons-round" style="font-size: 20px;">restore</i>
+            </button>
+        </div>
     </div>
     
     <div id="channelList" class="channel-list"></div>
@@ -533,6 +551,9 @@
     let globalIdCounter = Date.now();
     let currentListContext = DEFAULT_LIST;
 
+    // Sürükle Bırak Değişkenleri
+    let draggedItemIndex = null;
+
     // LocalStorage Verilerini Çekme
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
@@ -552,7 +573,6 @@
         showOSD("API Kaydedildi", "Google arama motoru aktif edildi.");
     }
 
-    // Eski zimmetli kanalları yeni sisteme (dict formatına) geçirme
     if (localStorage.getItem('tv_extras') && !localStorage.getItem('tv_extras_dict')) {
          extraChannelsDict[DEFAULT_LIST] = JSON.parse(localStorage.getItem('tv_extras'));
          localStorage.setItem('tv_extras_dict', JSON.stringify(extraChannelsDict));
@@ -720,20 +740,24 @@
         sortAndRenderList();
     }
 
-    // --- HAZIR LİSTE VE ZİMMET YÖNETİMİ ---
+    // --- SENKRONİZE HAZIR LİSTE VE ZİMMET YÖNETİMİ ---
     function updatePresetDropdown() {
-        const grp = document.getElementById('personalPresets');
-        const ytGrp = document.getElementById('ytPlaylistsGroup');
-        grp.innerHTML = ''; ytGrp.innerHTML = '';
+        const grpLeft = document.getElementById('personalPresets');
+        const ytGrpLeft = document.getElementById('ytPlaylistsGroup');
+        const grpRight = document.getElementById('personalPresetsRight');
+        const ytGrpRight = document.getElementById('ytPlaylistsGroupRight');
+        
+        grpLeft.innerHTML = ''; ytGrpLeft.innerHTML = '';
+        grpRight.innerHTML = ''; ytGrpRight.innerHTML = '';
         
         personalPresets.forEach((p) => {
-            const opt = document.createElement('option');
-            opt.value = p.url; opt.innerText = "⭐ " + p.name; grp.appendChild(opt);
+            const optL = document.createElement('option'); optL.value = p.url; optL.innerText = "⭐ " + p.name; grpLeft.appendChild(optL);
+            const optR = document.createElement('option'); optR.value = p.url; optR.innerText = "⭐ " + p.name; grpRight.appendChild(optR);
         });
         
         ytPlaylistsData.forEach((p) => {
-            const opt = document.createElement('option');
-            opt.value = 'ytpl_' + p.id; opt.innerText = "📺 " + p.name; ytGrp.appendChild(opt);
+            const optL = document.createElement('option'); optL.value = 'ytpl_' + p.id; optL.innerText = "📺 " + p.name; ytGrpLeft.appendChild(optL);
+            const optR = document.createElement('option'); optR.value = 'ytpl_' + p.id; optR.innerText = "📺 " + p.name; ytGrpRight.appendChild(optR);
         });
         checkSelectedPreset();
     }
@@ -742,6 +766,12 @@
         const val = document.getElementById('countrySelect').value;
         const isPersonal = personalPresets.find(p => p.url === val) || val.startsWith('ytpl_');
         document.getElementById('removePresetBtn').style.display = isPersonal ? 'block' : 'none';
+    }
+
+    function syncAndChangeCountry(val) {
+        document.getElementById('countrySelect').value = val;
+        document.getElementById('rightCountrySelect').value = val;
+        changeCountry();
     }
 
     function removeCurrentPreset() {
@@ -757,8 +787,7 @@
         }
         
         updatePresetDropdown(); 
-        document.getElementById('countrySelect').value = "tr"; 
-        changeCountry();
+        syncAndChangeCountry("tr");
     }
 
     function injectExtraChannels() {
@@ -907,9 +936,8 @@
             localStorage.setItem('tv_yt_playlists', JSON.stringify(ytPlaylistsData));
             
             updatePresetDropdown();
-            document.getElementById('countrySelect').value = 'ytpl_' + listId;
+            syncAndChangeCountry('ytpl_' + listId);
             document.getElementById('ytPlaylistUrl').value = '';
-            changeCountry();
         } catch(e) { 
             alert("Liste çekilemedi. API anahtarınızı kontrol edin."); 
             stat.innerText = "Hata"; 
@@ -1011,8 +1039,7 @@
                     personalPresets.push({name: name, url: val}); 
                     localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); 
                     updatePresetDropdown(); 
-                    document.getElementById('countrySelect').value = val; 
-                    checkSelectedPreset(); 
+                    syncAndChangeCountry(val);
                 }
             }
             currentListContext = val; 
@@ -1101,7 +1128,7 @@
         window.open(`https://www.google.com/search?q=${encodeURIComponent('site:github.com "EXTM3U" ' + term)}`, '_blank'); 
     }
 
-    // --- LİSTE ARAMA, SIRALAMA VE ÇİZİM ---
+    // --- MANUEL SIRALAMA (DRAG & DROP) VE LİSTE ÇİZİMİ ---
     
     function performSearch() { 
         const term = document.getElementById('filterInput').value.toLowerCase(); 
@@ -1141,6 +1168,13 @@
             const item = document.createElement('div'); 
             item.className = `channel-item ${i===curIdx ? 'active' : ''} ${ch.broken ? 'broken' : ''}`; 
             item.id = `c-${i}`;
+            item.setAttribute('draggable', 'true');
+            
+            // Sürükle Bırak Olayları
+            item.addEventListener('dragstart', (e) => handleDragStart(e, i));
+            item.addEventListener('dragover', handleDragOver);
+            item.addEventListener('drop', (e) => handleDrop(e, i));
+            item.addEventListener('dragend', handleDragEnd);
             
             item.onclick = () => { play(i, 0); closeAllDrawers(); }; 
             
@@ -1154,9 +1188,51 @@
                 delBtn = `<i class="material-icons-round del-icon" onclick="deleteSingleChannel(event, '${ch.id}')" title="Kanalı Sil">close</i>`;
             }
             
-            item.innerHTML = `${img} <span class="name">${ch.name}</span> <i class="material-icons-round fav-icon ${ch.isFavorite ? 'active' : ''}" onclick="toggleFavorite(event, '${ch.id}')">star</i> ${delBtn}`;
+            item.innerHTML = `
+                <i class="material-icons-round drag-handle" title="Basılı tutup sürükleyin">drag_indicator</i>
+                ${img} 
+                <span class="name">${ch.name}</span> 
+                <i class="material-icons-round fav-icon ${ch.isFavorite ? 'active' : ''}" onclick="toggleFavorite(event, '${ch.id}')">star</i> 
+                ${delBtn}
+            `;
             container.appendChild(item);
         });
+    }
+
+    // Sürükle Bırak Mantığı
+    function handleDragStart(e, index) {
+        draggedItemIndex = index;
+        e.target.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+        if (e.preventDefault) e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        return false;
+    }
+
+    function handleDrop(e, targetIndex) {
+        e.stopPropagation();
+        if (draggedItemIndex !== null && draggedItemIndex !== targetIndex) {
+            const movedItem = allChannels.splice(draggedItemIndex, 1)[0];
+            allChannels.splice(targetIndex, 0, movedItem);
+            
+            // Yeni sıralama dizinlerini güncelle
+            allChannels.forEach((c, idx) => { c.originalIndex = idx; });
+            
+            const toSave = allChannels.filter(c => !c.id.startsWith('ch_ex_'));
+            localStorage.setItem('tv_custom', JSON.stringify(toSave));
+            
+            sortAndRenderList();
+            showOSD("Sıralama Güncellendi");
+        }
+        return false;
+    }
+
+    function handleDragEnd(e) {
+        e.target.classList.remove('dragging');
+        draggedItemIndex = null;
     }
 
     // --- KANAL TARAMA (SCANNER) ---
@@ -1263,13 +1339,12 @@
             localStorage.removeItem('tv_custom'); 
             localStorage.removeItem('tv_favorites'); 
             localStorage.removeItem('tv_broken');
-            document.getElementById('countrySelect').value = "tr"; 
-            changeCountry(); 
+            syncAndChangeCountry("tr"); 
             closeAllDrawers(); 
         }
     }
 
-    // --- OYNATMA FONKSİYONLARI ---
+    // --- OYNATMA VE TV CAST İŞLEMLERİ ---
 
     function toggleDualPlay() {
         isDualPlayActive = !isDualPlayActive; 
@@ -1384,6 +1459,17 @@
         }, waitTime);
     }
 
+    // TV DİL TESPİTİ VE OTOMATİK ALTYAZI SİSTEMİ
+    function detectLanguageForSubtitles(chName) {
+        const titleLower = chName.toLowerCase();
+        if (titleLower.includes('en') || titleLower.includes('english') || titleLower.includes('usa') || titleLower.includes('uk')) {
+            return 'en';
+        } else if (titleLower.includes('de') || titleLower.includes('deutsch') || titleLower.includes('german')) {
+            return 'de';
+        }
+        return null;
+    }
+
     function play(idx, dir = 0) {
         if (idx < 0 || idx >= allChannels.length) return;
         
@@ -1393,7 +1479,6 @@
         let ch = allChannels[curIdx]; 
         autoPlayDirection = dir || 1; 
         
-        // Bozuk olarak işaretlenmiş ama elle tıklandıysa şans ver
         if (dir === 0 && ch.broken) { 
             ch.broken = false; 
             sortAndRenderList(); 
@@ -1412,22 +1497,47 @@
         document.getElementById('previewTitle').innerText = ch.name; 
         updateMainFavBtn(); 
         
+        const ytId = extractYTId(ch.url);
+
         if (remotePlayer && remotePlayer.isConnected) {
             document.getElementById('pStatus').innerText = "TV'ye Aktarılıyor..."; 
-            showOSD(ch.name, "TV'de Oynatılıyor");
+            
+            let autoLang = detectLanguageForSubtitles(ch.name);
+            let subNote = autoLang ? `Otomatik Altyazı AÇIK (${autoLang.toUpperCase()})` : "TV'de Oynatılıyor";
+            showOSD(ch.name, subNote);
             
             if (!isDualPlayActive) stopLocally(); 
             else playLocally(ch.url, mySession);
             
-            // TV Cast M3U8 veya HLS desteği (Google API video m3u8 vermediği için varsayılan akışı cast ediyoruz)
-            // Ağ engeli varsa cast tarafı çalışmayabilir ama cihaz içi (ytPlayer) sorunsuz çalışır.
-            const media = new chrome.cast.media.MediaInfo(ch.url, 'application/x-mpegurl'); 
+            // TV Cast Yapılandırması (YouTube ve Normal Akışlar)
+            let castMediaUrl = ch.url;
+            let mimeType = 'application/x-mpegurl';
+            
+            if (ytId) {
+                // TV'nin doğrudan oynatabileceği YouTube MP4 / WebM akış sarmalayıcısı
+                castMediaUrl = `https://www.youtube.com/watch?v=${ytId}`;
+                mimeType = 'video/mp4';
+            }
+
+            const media = new chrome.cast.media.MediaInfo(castMediaUrl, mimeType); 
             media.metadata = new chrome.cast.media.GenericMediaMetadata(); 
             media.metadata.title = ch.name; 
             if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; 
             
+            // YENİ: TV Otomatik Altyazı Ayarı (İngilizce / Almanca)
+            if (autoLang) {
+                const track = new chrome.cast.media.Track(1, chrome.cast.media.TrackType.TEXT);
+                track.trackContentId = autoLang;
+                track.trackContentType = 'text/vtt';
+                track.subtype = chrome.cast.media.TextTrackSubtype.SUBTITLES;
+                track.name = autoLang === 'en' ? 'English' : 'German';
+                track.language = autoLang;
+                media.tracks = [track];
+            }
+
             const req = new chrome.cast.media.LoadRequest(media); 
             req.autoplay = true;
+            if (autoLang) req.activeTrackIds = [1];
             
             cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req)
                 .then(()=>{ 
