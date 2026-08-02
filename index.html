@@ -87,6 +87,12 @@
         .btn:hover { opacity: 0.9; }
         .btn-icon { padding: 0 15px; background: #3d3e46; color: white; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); }
 
+        /* --- YOUTUBE ARAMA LİSTESİ --- */
+        .yt-search-results { max-height: 200px; overflow-y: auto; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; background: #121212; display: none; }
+        .yt-search-item { padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.75rem; }
+        .yt-search-item:hover { background: rgba(108, 92, 231, 0.2); }
+        .yt-search-item img { width: 50px; height: 32px; object-fit: cover; border-radius: 4px; }
+
         /* --- KANAL LİSTESİ --- */
         .channel-list { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
         .channel-item { padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 12px; color: #ddd; transition: background 0.2s; }
@@ -104,7 +110,6 @@
         .fav-icon.active { color: var(--fav); text-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
         .fav-icon:hover { background: rgba(255,255,255,0.1); }
         
-        /* Çöp Kutusu / Silme İkonu */
         .del-icon { color: rgba(231, 76, 60, 0.5); font-size: 20px; transition: 0.3s; padding: 5px; border-radius: 50%; margin-left: 5px; }
         .del-icon:hover { color: rgba(231, 76, 60, 1); background: rgba(231, 76, 60, 0.1); }
 
@@ -260,7 +265,6 @@
             </div>
         </div>
         
-        <!-- YENİ: YOUTUBE PLAYLIST MODÜLÜ -->
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-yt-playlist')">
                 <p class="module-title" style="color:#e84118;">YouTube Playlist Ekle</p>
@@ -275,16 +279,27 @@
             </div>
         </div>
 
+        <!-- GÜNCELLENDİ: TEKİL KANAL & YOUTUBE ARAMA MODÜLÜ -->
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-single')">
-                <p class="module-title" style="color:var(--fav);">Tekil Kanal Ekle (Zimmetli)</p>
+                <p class="module-title" style="color:var(--fav);">Tekil Kanal / YouTube Ara (Zimmetli)</p>
                 <i class="material-icons-round icon-state">expand_more</i>
             </div>
             <div id="mod-single" class="module-body" style="display:none; border-top-color: rgba(241, 196, 15, 0.3);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                     <span style="font-size:0.7rem; color:var(--fav); font-weight:bold;">Sadece Aktif Listeye Eklenir</span>
                 </div>
-                <input type="text" id="singleName" placeholder="Kanal Adı (Örn: Sözcü TV)">
+                
+                <!-- YouTube Arama Kutusu -->
+                <div style="display:flex; gap:5px; margin-bottom:10px;">
+                    <input type="text" id="ytSearchQuery" placeholder="YouTube'da Ara (Örn: Sözcü TV Canlı)" onkeydown="if(event.key === 'Enter') searchYouTube()">
+                    <button class="btn" style="flex:0.4; background:#e84118; border-color:#e84118;" onclick="searchYouTube()"><i class="material-icons-round">search</i></button>
+                </div>
+                <div id="ytSearchResults" class="yt-search-results"></div>
+
+                <hr style="border:0; border-top:1px solid var(--border); margin:12px 0;">
+
+                <input type="text" id="singleName" placeholder="Kanal Adı">
                 <input type="text" id="singleUrl" placeholder="Yayın Linki (.m3u8 veya YouTube Linki)" style="margin-top:10px;">
                 <input type="text" id="singleLogo" placeholder="Logo Linki (İsteğe bağlı)" style="margin-top:10px;">
                 <button class="btn" style="width:100%; margin-top:10px; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Aktif Listeye Ekle</button>
@@ -349,19 +364,15 @@
     let isErrorHandling = false;
     let currentPlaySession = 0; 
     let globalIdCounter = Date.now();
-    let currentListContext = DEFAULT_LIST; // Hangi listenin aktif olduğunu takip eder
+    let currentListContext = DEFAULT_LIST;
 
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
     let customChannelsData = JSON.parse(localStorage.getItem('tv_custom')) || []; 
     let personalPresets = JSON.parse(localStorage.getItem('tv_presets')) || [];
-    
-    // YENİ: Sözlük tabanlı özel kanallar (Her liste kendi özel kanalını barındırır)
     let extraChannelsDict = JSON.parse(localStorage.getItem('tv_extras_dict')) || {};
-    // YENİ: YouTube Oynatma Listeleri Veritabanı
     let ytPlaylistsData = JSON.parse(localStorage.getItem('tv_yt_playlists')) || [];
 
-    // Eski yapıyı yeni sözlük yapısına (TR listesine) göç ettirme:
     if(localStorage.getItem('tv_extras') && !localStorage.getItem('tv_extras_dict')) {
          extraChannelsDict[DEFAULT_LIST] = JSON.parse(localStorage.getItem('tv_extras'));
          localStorage.setItem('tv_extras_dict', JSON.stringify(extraChannelsDict));
@@ -467,7 +478,6 @@
         });
     }
 
-    // YENİ: Silme Fonksiyonu
     function deleteSingleChannel(event, id) {
          event.stopPropagation();
          if(!confirm("Bu özel kanalı aktif listeden silmek istediğinize emin misiniz?")) return;
@@ -499,10 +509,87 @@
         injectExtraChannels(); sortAndRenderList();
         
         document.getElementById('singleName').value = ''; document.getElementById('singleUrl').value = ''; document.getElementById('singleLogo').value = '';
+        document.getElementById('ytSearchResults').style.display = 'none';
         showOSD("Kanal Eklendi", name + " sadece mevcut listeye sabitlendi.");
     }
 
-    // YENİ: Çoklu Sunucu Deneme Fonksiyonu (Engelleri Aşar)
+    // YENİ: YOUTUBE ARAMA FONKSİYONU
+    async function searchYouTube() {
+        const query = document.getElementById('ytSearchQuery').value.trim();
+        const resultsBox = document.getElementById('ytSearchResults');
+        if(!query) return;
+        
+        resultsBox.style.display = 'block';
+        resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:#aaa; text-align:center;">YouTube aranıyor...</div>';
+        
+        const servers = [
+            `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=all`,
+            `https://pipedapi.tokhmi.xyz/search?q=${encodeURIComponent(query)}&filter=all`,
+            `https://api.piped.projectsegfau.lt/search?q=${encodeURIComponent(query)}&filter=all`,
+            `https://pipedapi.adminforge.de/search?q=${encodeURIComponent(query)}&filter=all`
+        ];
+        
+        let items = null;
+        for (let api of servers) {
+            try {
+                let res = await fetch(api);
+                if (!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
+                if (res.ok) {
+                    let data = await res.json();
+                    items = data.items;
+                    break;
+                }
+            } catch(e) {}
+        }
+        
+        if(!items || !items.length) {
+            resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:var(--red); text-align:center;">Sonuç bulunamadı.</div>';
+            return;
+        }
+        
+        resultsBox.innerHTML = '';
+        items.filter(i => i.type === 'stream').slice(0, 10).forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'yt-search-item';
+            div.onclick = () => selectYtSearchResult(item.title, "https://www.youtube.com" + item.url, item.thumbnail);
+            div.innerHTML = `<img src="${item.thumbnail}" onerror="this.style.display='none'"> <span>${item.title}</span>`;
+            resultsBox.appendChild(div);
+        });
+    }
+
+    function selectYtSearchResult(title, url, thumbnail) {
+        document.getElementById('singleName').value = title;
+        document.getElementById('singleUrl').value = url;
+        document.getElementById('singleLogo').value = thumbnail;
+        document.getElementById('ytSearchResults').style.display = 'none';
+        showOSD("Seçildi", "Kanal bilgileri forma dolduruldu. 'Aktif Listeye Ekle'ye basın.");
+    }
+
+    // YENİ: TV CAST İÇİN CANLI M3U8 AKIŞI ÇÖZÜCÜ (Mi Stick Fix)
+    async function getCastableUrl(url) {
+        const ytId = extractYTId(url);
+        if (!ytId) return { url: url, mime: 'application/x-mpegurl' };
+        
+        const servers = [
+            `https://pipedapi.kavin.rocks/streams/${ytId}`,
+            `https://pipedapi.tokhmi.xyz/streams/${ytId}`,
+            `https://api.piped.projectsegfau.lt/streams/${ytId}`,
+            `https://pipedapi.adminforge.de/streams/${ytId}`
+        ];
+        
+        for (let api of servers) {
+            try {
+                let res = await fetch(api);
+                if (!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
+                if (res.ok) {
+                    let data = await res.json();
+                    if (data.hls) return { url: data.hls, mime: 'application/x-mpegurl' };
+                }
+            } catch(e) {}
+        }
+        return { url: `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytId}`, mime: 'application/x-mpegurl' };
+    }
+
     async function fetchYTPlaylistData(listId) {
         const servers = [
             `https://pipedapi.kavin.rocks/playlists/${listId}`,
@@ -521,7 +608,6 @@
         throw new Error("Tüm Piped sunucuları engellendi");
     }
 
-    // GÜNCELLENDİ: Playlist Ekleme
     async function addYTPlaylist() {
         let url = document.getElementById('ytPlaylistUrl').value.trim();
         if(!url) return;
@@ -537,25 +623,21 @@
         const stat = document.getElementById('status'); stat.innerText = "Yedek sunuculardan liste aranıyor...";
         try {
             const data = await fetchYTPlaylistData(listId);
-            
             ytPlaylistsData.push({ id: listId, name: data.name || "YT Playlist" });
             localStorage.setItem('tv_yt_playlists', JSON.stringify(ytPlaylistsData));
             updatePresetDropdown();
-            
             document.getElementById('countrySelect').value = 'ytpl_' + listId;
             document.getElementById('ytPlaylistUrl').value = '';
             changeCountry();
-        } catch(e) { alert("Liste çekilemedi. YouTube sunuculara anlık erişim engeli uyguluyor olabilir, birazdan tekrar deneyin."); stat.innerText = "Hata"; }
+        } catch(e) { alert("Liste çekilemedi. YouTube sunuculara anlık erişim engeli uyguluyor olabilir."); stat.innerText = "Hata"; }
     }
 
-    // GÜNCELLENDİ: Playlist'i Oynatıcıya Yükleme
     async function loadYTPlaylistFromId(listId) {
          const stat = document.getElementById('status'); stat.innerText = "Videolar yükleniyor...";
          currentListContext = 'ytpl_' + listId; 
          
          try {
             const data = await fetchYTPlaylistData(listId);
-            
             const newChannels = []; let startIndex = 0;
             data.relatedStreams.forEach(vid => {
                 let vidUrl = "https://www.youtube.com" + vid.url;
@@ -597,7 +679,6 @@
         vid.addEventListener('play', () => document.getElementById('playIcon').innerText = 'pause');
         vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow');
         vid.addEventListener('playing', () => document.getElementById('playIcon').innerText = 'pause');
-        
         vid.addEventListener('error', () => { if (!vid.currentSrc || vid.currentSrc === window.location.href) return; handleStreamError(currentPlaySession); }); 
     });
 
@@ -705,7 +786,7 @@
             loadYTPlaylistFromId(val.replace('ytpl_', ''));
         } else {
             let url = val.startsWith('http') ? val : `https://iptv-org.github.io/iptv/countries/${val}.m3u`; 
-            currentListContext = url; // Zimmet için Context Güncellendi
+            currentListContext = url; 
             loadUrl(url, "Liste Hazır!", false); 
         }
     }
@@ -723,7 +804,7 @@
             if(name && !append) {
                 if(!personalPresets.find(p => p.url === val)) { personalPresets.push({name: name, url: val}); localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); updatePresetDropdown(); document.getElementById('countrySelect').value = val; checkSelectedPreset(); }
             }
-            currentListContext = val; // Yeni liste yükleniyor, contexti güncelle
+            currentListContext = val; 
             loadUrl(val, "Özel Liste Yüklendi", append); 
         } else { 
             parseAndAdd(val, append); 
@@ -783,7 +864,6 @@
             let img = `<div class="c-icon"><i class="material-icons-round" style="font-size:16px;">tv</i></div>`;
             if(ch.logo) img = `<div class="c-icon"><img src="${ch.logo}" onerror="this.onerror=null; this.parentNode.innerHTML='<i class=\'material-icons-round\' style=\'font-size:16px;\'>tv</i>'"></div>`;
             
-            // YENİ: Çöp Kutusu İkonu Sadece Ekstra Kanallarda Çıkar
             let delBtn = '';
             if (ch.id.startsWith('ch_ex_')) {
                 delBtn = `<i class="material-icons-round del-icon" onclick="deleteSingleChannel(event, '${ch.id}')" title="Kanalı Sil">close</i>`;
@@ -822,6 +902,7 @@
         }, waitTime);
     }
 
+    // GÜNCELLENDİ: PLAY İŞLEVİ (TV CAST AKIŞI DÜZELTİLDİ)
     function play(idx, dir = 0) {
         if(idx < 0 || idx >= allChannels.length) return;
         
@@ -838,12 +919,18 @@
             document.getElementById('pStatus').innerText = "TV'ye Aktarılıyor..."; showOSD(ch.name, "TV'de Oynatılıyor");
             if (!isDualPlayActive) stopLocally(); else playLocally(ch.url, mySession);
             
-            let castUrl = ch.url; const ytIdForCast = extractYTId(castUrl);
-            if(ytIdForCast) castUrl = `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytIdForCast}`;
-
-            const media = new chrome.cast.media.MediaInfo(castUrl, 'application/x-mpegurl'); media.metadata = new chrome.cast.media.GenericMediaMetadata(); media.metadata.title = ch.name;
-            if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; const req = new chrome.cast.media.LoadRequest(media); req.autoplay = true;
-            cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req).then(()=>{ document.getElementById('pStatus').innerText = isDualPlayActive ? "Cihazda & TV'de İzleniyor" : "TV'de İzleniyor"; }).catch(() => { handleStreamError(mySession); });
+            // TV için Akış Adresini Çözümle (YouTube Fix)
+            getCastableUrl(ch.url).then(mediaData => {
+                const media = new chrome.cast.media.MediaInfo(mediaData.url, mediaData.mime); 
+                media.metadata = new chrome.cast.media.GenericMediaMetadata(); 
+                media.metadata.title = ch.name;
+                if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; 
+                
+                const req = new chrome.cast.media.LoadRequest(media); req.autoplay = true;
+                cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req)
+                    .then(()=>{ document.getElementById('pStatus').innerText = isDualPlayActive ? "Cihazda & TV'de İzleniyor" : "TV'de İzleniyor"; })
+                    .catch(() => { handleStreamError(mySession); });
+            });
         } else { document.getElementById('pStatus').innerText = "Bağlanıyor..."; showOSD(ch.name); playLocally(ch.url, mySession); }
         resetControlsTimer();
     }
