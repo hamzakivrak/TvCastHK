@@ -840,7 +840,7 @@
     }
     function detectLanguageForSubtitles(chName) { const titleLower = chName.toLowerCase(); if (titleLower.includes('en') || titleLower.includes('english') || titleLower.includes('usa') || titleLower.includes('uk')) { return 'en'; } else if (titleLower.includes('de') || titleLower.includes('deutsch') || titleLower.includes('german')) { return 'de'; } return null; }
 
-    function play(idx, dir = 0) {
+    async function play(idx, dir = 0) {
         if (idx < 0 || idx >= allChannels.length) return;
         currentPlaySession++; let mySession = currentPlaySession; curIdx = idx; let ch = allChannels[curIdx]; autoPlayDirection = dir || 1; 
         if (dir === 0 && ch.broken) { ch.broken = false; sortAndRenderList(); idx = curIdx; ch = allChannels[curIdx]; }
@@ -849,21 +849,35 @@
         const ytId = extractYTId(ch.url);
 
         if (remotePlayer && remotePlayer.isConnected) {
-            document.getElementById('pStatus').innerText = "TV'ye Aktarılıyor..."; 
-            let autoLang = detectLanguageForSubtitles(ch.name); showOSD(ch.name, "TV'de Oynatılıyor");
+            let autoLang = detectLanguageForSubtitles(ch.name); 
             if (!isDualPlayActive) stopLocally(); else playLocally(ch.url, mySession);
             
             let castMediaUrl = ch.url; let mimeType = 'application/x-mpegurl';
+            
             if (ytId) {
-                // TV'yi %100 uyumlu hale getiren M3U8 uzantı çözümü eklendi
+                // TV'yi bekletmemek için yükü telefona alıyoruz
+                document.getElementById('pStatus').innerText = "TV İçin Dönüştürülüyor..."; 
+                showOSD(ch.name, "Bağlantı hazırlanıyor, lütfen bekleyin...");
+                
                 const rawLemnos = `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytId}`;
                 castMediaUrl = MY_CLOUD_PROXY + encodeURIComponent(rawLemnos) + "&ext=.m3u8";
-                mimeType = 'application/x-mpegurl'; // NATIVE CHROMECAST DİLİ
+                mimeType = 'application/x-mpegurl';
+                
+                // TELEFONUN DÖNÜŞÜMÜ BEKLEMESİ İÇİN ÖN-İSTEK (PRE-FETCH) HİLESİ
+                try {
+                    await fetch(castMediaUrl, { method: 'HEAD', mode: 'no-cors' }); 
+                } catch(e) { console.log("Ön yükleme zaman aşımı, devam ediliyor..."); }
+                
+                document.getElementById('pStatus').innerText = "TV'ye Gönderiliyor...";
+            } else {
+                document.getElementById('pStatus').innerText = "TV'ye Aktarılıyor..."; 
+                showOSD(ch.name, "TV'de Oynatılıyor");
             }
             
             const media = new chrome.cast.media.MediaInfo(castMediaUrl, mimeType); media.metadata = new chrome.cast.media.GenericMediaMetadata(); media.metadata.title = ch.name; if(ch.logo) media.metadata.images = [new chrome.cast.Image(ch.logo)]; 
             if (autoLang) { const track = new chrome.cast.media.Track(1, chrome.cast.media.TrackType.TEXT); track.trackContentId = autoLang; track.trackContentType = 'text/vtt'; track.subtype = chrome.cast.media.TextTrackSubtype.SUBTITLES; track.name = autoLang === 'en' ? 'English' : 'German'; track.language = autoLang; media.tracks = [track]; }
             const req = new chrome.cast.media.LoadRequest(media); req.autoplay = true; if (autoLang) req.activeTrackIds = [1];
+            
             cast.framework.CastContext.getInstance().getCurrentSession().loadMedia(req).then(()=>{ document.getElementById('pStatus').innerText = isDualPlayActive ? "Cihazda & TV'de" : "TV'de İzleniyor"; }).catch(() => { handleStreamError(mySession); });
         } else { document.getElementById('pStatus').innerText = "Bağlanıyor..."; showOSD(ch.name); playLocally(ch.url, mySession); }
         resetControlsTimer();
