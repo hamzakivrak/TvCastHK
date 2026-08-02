@@ -37,7 +37,6 @@
         #castOnlyTitle { color: #fff; margin: 0 0 10px 0; font-weight: 500; font-size: 1.5rem; text-align: center; padding: 0 20px; }
         #castOnlySubtitle { margin: 0; font-size: 0.9rem; letter-spacing: 1px; text-transform: uppercase; }
 
-        /* DOKUNMATİK ALANLAR (ORTA KISIM ARTIK KONTROLLERİ BÜYÜTMEZ, SADECE EKRANI AÇAR) */
         .tap-zone { position: absolute; top: 0; bottom: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; transition: background 0.3s; }
         .tap-zone.left-zone { left: 0; width: 15%; background: linear-gradient(to right, rgba(0,0,0,0.3), transparent); }
         .tap-zone.left-zone:hover { background: linear-gradient(to right, rgba(0,0,0,0.6), transparent); }
@@ -56,7 +55,6 @@
         .top-title { font-weight: 600; font-size: 1.1rem; text-shadow: 0 2px 5px #000; display: flex; flex-direction: column; gap: 5px; }
         .status-badge { font-size: 0.75rem; color: var(--primary); font-weight: 500; letter-spacing: 1px; text-transform: uppercase; }
         
-        /* ŞIK VE KOMPAKT ALT KONTROL BARI */
         .center-buttons { display: flex; justify-content: center; align-items: center; gap: 15px; pointer-events: auto; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(15, 15, 20, 0.75); padding: 10px 20px; border-radius: 40px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         
         .ctrl-btn { background: transparent; border: none; color: white; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 45px; height: 45px; transition: all 0.2s; flex-shrink: 0; }
@@ -140,11 +138,9 @@
             .ctrl-btn i { font-size: 26px; }
         }
 
-        /* BASİT MOD UYARISI */
         #simpleModeAlert { display: none; padding: 15px; background: rgba(46, 204, 113, 0.1); border: 1px solid #2ecc71; color: #2ecc71; border-radius: 12px; margin-bottom: 15px; text-align: center; font-size: 0.85rem; line-height: 1.4; }
     </style>
 
-    <!-- CHROMECAST FRAMEWORK -->
     <script>
         let remotePlayer, remoteController;
         
@@ -249,7 +245,6 @@
         </div>
 
         <div id="normalSettingsWrapper">
-            <!-- ANA BAĞLANTI (HER ZAMAN GÖRÜNÜR) -->
             <div id="castBox" onclick="triggerCustomCast()" style="background: #25262c; border: 1px solid var(--primary); padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; transition: 0.3s; cursor: pointer;">
                 <div>
                     <h3 style="margin:0; font-size:1rem; color:white;">TV Cast</h3>
@@ -258,7 +253,6 @@
                 <i class="material-icons-round" id="customCastIcon" style="color: var(--primary); font-size: 28px;">cast</i>
             </div>
             
-            <!-- HAZIR LİSTELER -->
             <div class="module" style="margin-bottom: 25px;">
                 <div class="module-header" style="cursor:default;"><p class="module-title">Aktif Liste</p></div>
                 <div class="module-body" style="padding-top:0; border:none;">
@@ -281,7 +275,6 @@
                 </div>
             </div>
             
-            <!-- GELİŞMİŞ AYARLAR BÖLÜMÜ -->
             <div class="module" style="background: transparent; border-color: rgba(255,255,255,0.1);">
                 <div class="module-header" onclick="toggleModule('mod-advanced')" style="background: rgba(255,255,255,0.05); border-radius: 8px;">
                     <p class="module-title" style="color:#aaa;">Gelişmiş Seçenekler</p>
@@ -290,21 +283,18 @@
                 
                 <div id="mod-advanced" class="module-body" style="display:none; padding: 15px 5px; border-top: none;">
                     
-                    <!-- BASİT MOD AKTİVASYONU -->
                     <div class="sub-module">
                         <button class="btn" style="width:100%; background:#2ecc71; border-color:#2ecc71; font-weight:bold; height: 50px; font-size: 0.9rem;" onclick="toggleSimpleMode()">
                             <i class="material-icons-round" style="margin-right: 8px;">accessibility_new</i> Basit Modu Aç
                         </button>
-                        <p style="font-size: 0.7rem; color: #aaa; text-align: center; margin-top: 8px; line-height: 1.3;">Arayüzü kilitler ve sadece ekranı kaydırarak (swipe) kanal değiştirmenizi sağlar. Yaşlılar veya hızlı kullanım için idealdir.</p>
+                        <p style="font-size: 0.7rem; color: #aaa; text-align: center; margin-top: 8px; line-height: 1.3;">Arayüzü kilitler ve sadece ekranı kaydırarak kanal değiştirmenizi sağlar.</p>
                     </div>
 
-                    <!-- Çift Oynatma -->
                     <div class="sub-module" style="display: flex; align-items: center; justify-content: space-between;">
                         <span style="font-size: 0.85rem; font-weight: 500;">Telefonda da Oynat</span>
                         <button class="btn" id="dualPlayToggleBtn" onclick="toggleDualPlay()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px; margin:0;">Kapalı</button>
                     </div>
 
-                    <!-- API Ayarı -->
                     <div class="sub-module">
                         <span class="sub-module-title" style="color:#2ecc71;">YouTube API</span>
                         <input type="password" id="userApiKey" placeholder="Google API Key">
@@ -456,44 +446,70 @@
         else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); togglePlayPause(); }
     });
 
-    // --- SWIPE VE UZUN BASMA MANTIĞI ---
+    // --- SWIPE / SÜRÜKLEME MANTIĞI (MOBİL VE PC BİRLEŞTİRİLDİ) ---
     let touchStartY = 0;
-    let touchEndY = 0;
+    let isDragging = false;
     let longPressTimer;
     
     const pw = document.getElementById('playerWrapper');
+    
+    // Mobil Swipe
     pw.addEventListener('touchstart', e => { touchStartY = e.changedTouches[0].screenY; }, {passive: true});
     pw.addEventListener('touchend', e => {
-        touchEndY = e.changedTouches[0].screenY;
-        const diff = touchStartY - touchEndY;
-        if (diff > 60) nextCh();      // Yukarı Fırlatma = Sonraki Kanal
-        else if (diff < -60) prevCh(); // Aşağı Fırlatma = Önceki Kanal
+        const diff = touchStartY - e.changedTouches[0].screenY;
+        if (diff > 60) nextCh();      
+        else if (diff < -60) prevCh(); 
     }, {passive: true});
+
+    // PC Mouse Swipe
+    pw.addEventListener('mousedown', e => { isDragging = true; touchStartY = e.clientY; });
+    pw.addEventListener('mouseup', e => {
+        if (!isDragging) return;
+        isDragging = false;
+        const diff = touchStartY - e.clientY;
+        if (diff > 60) nextCh();
+        else if (diff < -60) prevCh();
+    });
+    pw.addEventListener('mouseleave', () => { isDragging = false; });
 
     const leftZone = document.getElementById('leftTapZone');
     const rightZone = document.getElementById('rightTapZone');
 
+    // --- HATALARIN ÇÖZÜLDÜĞÜ FONKSİYON (FARE EVENT'LERİ EKLENDİ, SAĞ MENÜ DÜZELTİLDİ) ---
     function applySimpleModeState() {
         if (isSimpleMode) {
-            rightZone.style.display = 'none'; // Sağ çekmece iptal
-            leftZone.onclick = null; // Normal tıklama iptal
+            rightZone.style.display = 'none';
+            leftZone.onclick = null;
+            rightZone.onclick = null; // Kapalıyken tıklamaları sil
             
-            // 3 Saniye Basılı Tutma Mantığı
+            // Mobil basılı tutma
             leftZone.addEventListener('touchstart', startLongPress, {passive: true});
             leftZone.addEventListener('touchend', cancelLongPress, {passive: true});
             leftZone.addEventListener('touchcancel', cancelLongPress, {passive: true});
+            
+            // PC Mouse basılı tutma
+            leftZone.addEventListener('mousedown', startLongPress);
+            leftZone.addEventListener('mouseup', cancelLongPress);
+            leftZone.addEventListener('mouseleave', cancelLongPress);
 
             document.getElementById('normalSettingsWrapper').style.display = 'none';
             document.getElementById('simpleModeAlert').style.display = 'block';
             
-            showOSD("Basit Mod Aktif", "Değiştirmek için parmağınızı kaydırın");
+            showOSD("Basit Mod Aktif", "Değiştirmek için ekranı kaydırın");
         } else {
             rightZone.style.display = 'flex';
             leftZone.onclick = openLeftSidebar;
+            rightZone.onclick = openRightSidebar; // HATANIN ÇÖZÜMÜ: Tıklamayı geri ver!
             
+            // Mobil iptal
             leftZone.removeEventListener('touchstart', startLongPress);
             leftZone.removeEventListener('touchend', cancelLongPress);
             leftZone.removeEventListener('touchcancel', cancelLongPress);
+            
+            // PC Mouse iptal
+            leftZone.removeEventListener('mousedown', startLongPress);
+            leftZone.removeEventListener('mouseup', cancelLongPress);
+            leftZone.removeEventListener('mouseleave', cancelLongPress);
 
             document.getElementById('normalSettingsWrapper').style.display = 'block';
             document.getElementById('simpleModeAlert').style.display = 'none';
@@ -501,9 +517,7 @@
     }
 
     function startLongPress(e) {
-        longPressTimer = setTimeout(() => {
-            openLeftSidebar();
-        }, 3000);
+        longPressTimer = setTimeout(() => { openLeftSidebar(); }, 3000);
     }
     
     function cancelLongPress(e) {
@@ -814,7 +828,6 @@
             
             let castMediaUrl = ch.url; let mimeType = 'application/x-mpegurl';
             if (ytId) {
-                // Chromecast'in YT limitini aşması için Proxy ve vnd.apple.mpegurl dönüşümü kullanılıyor
                 const rawLemnos = `https://yt.lemnoslife.com/noKey/playlist?videoId=${ytId}`;
                 castMediaUrl = MY_CLOUD_PROXY + encodeURIComponent(rawLemnos);
                 mimeType = 'application/vnd.apple.mpegurl';
