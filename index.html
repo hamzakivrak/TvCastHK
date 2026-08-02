@@ -279,7 +279,6 @@
             </div>
         </div>
 
-        <!-- GÜNCELLENDİ: TEKİL KANAL & YOUTUBE ARAMA MODÜLÜ -->
         <div class="module">
             <div class="module-header" onclick="toggleModule('mod-single')">
                 <p class="module-title" style="color:var(--fav);">Tekil Kanal / YouTube Ara (Zimmetli)</p>
@@ -513,46 +512,62 @@
         showOSD("Kanal Eklendi", name + " sadece mevcut listeye sabitlendi.");
     }
 
-    // YENİ: YOUTUBE ARAMA FONKSİYONU
+    // GÜNCELLENDİ: HİBRİT VE GÜÇLÜ YOUTUBE ARAMA MİMARİSİ (Piped + Invidious)
     async function searchYouTube() {
         const query = document.getElementById('ytSearchQuery').value.trim();
         const resultsBox = document.getElementById('ytSearchResults');
         if(!query) return;
         
         resultsBox.style.display = 'block';
-        resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:#aaa; text-align:center;">YouTube aranıyor...</div>';
+        resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:#aaa; text-align:center;">YouTube sunucularında aranıyor...</div>';
         
+        // corsproxy.io'ya bağımlı olmayan, direkt çalışan Piped ve Invidious ağları
         const servers = [
-            `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=all`,
-            `https://pipedapi.tokhmi.xyz/search?q=${encodeURIComponent(query)}&filter=all`,
-            `https://api.piped.projectsegfau.lt/search?q=${encodeURIComponent(query)}&filter=all`,
-            `https://pipedapi.adminforge.de/search?q=${encodeURIComponent(query)}&filter=all`
+            { type: 'invidious', url: `https://invidious.asir.dev/api/v1/search?q=${encodeURIComponent(query)}` },
+            { type: 'piped', url: `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=all` },
+            { type: 'invidious', url: `https://invidious.slipfox.xyz/api/v1/search?q=${encodeURIComponent(query)}` },
+            { type: 'piped', url: `https://pipedapi.tokhmi.xyz/search?q=${encodeURIComponent(query)}&filter=all` },
+            { type: 'piped', url: `https://api.piped.projectsegfau.lt/search?q=${encodeURIComponent(query)}&filter=all` }
         ];
         
-        let items = null;
-        for (let api of servers) {
+        let results = [];
+        
+        for (let srv of servers) {
             try {
-                let res = await fetch(api);
-                if (!res.ok) res = await fetch('https://corsproxy.io/?' + encodeURIComponent(api));
-                if (res.ok) {
-                    let data = await res.json();
-                    items = data.items;
+                let res = await fetch(srv.url);
+                if (!res.ok) continue; // Bozuksa doğrudan diğerine geç
+                
+                let data = await res.json();
+                
+                if (srv.type === 'piped' && data.items && data.items.length > 0) {
+                    results = data.items.filter(i => i.type === 'stream').map(i => ({
+                        title: i.title,
+                        url: "https://www.youtube.com" + i.url,
+                        thumb: i.thumbnail
+                    }));
+                    break;
+                } else if (srv.type === 'invidious' && data.length > 0) {
+                    results = data.filter(i => i.type === 'video').map(i => ({
+                        title: i.title,
+                        url: "https://www.youtube.com/watch?v=" + i.videoId,
+                        thumb: i.videoThumbnails ? i.videoThumbnails[0].url : ''
+                    }));
                     break;
                 }
-            } catch(e) {}
+            } catch(e) { console.log("Atlanan sunucu:", srv.url); }
         }
         
-        if(!items || !items.length) {
-            resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:var(--red); text-align:center;">Sonuç bulunamadı.</div>';
+        if(!results.length) {
+            resultsBox.innerHTML = '<div style="padding:10px; font-size:0.75rem; color:var(--red); text-align:center;">Sonuç bulunamadı (Sunucular meşgul). Lütfen tekrar deneyin.</div>';
             return;
         }
         
         resultsBox.innerHTML = '';
-        items.filter(i => i.type === 'stream').slice(0, 10).forEach(item => {
+        results.slice(0, 10).forEach(item => {
             const div = document.createElement('div');
             div.className = 'yt-search-item';
-            div.onclick = () => selectYtSearchResult(item.title, "https://www.youtube.com" + item.url, item.thumbnail);
-            div.innerHTML = `<img src="${item.thumbnail}" onerror="this.style.display='none'"> <span>${item.title}</span>`;
+            div.onclick = () => selectYtSearchResult(item.title, item.url, item.thumb);
+            div.innerHTML = `<img src="${item.thumb}" onerror="this.style.display='none'"> <span>${item.title}</span>`;
             resultsBox.appendChild(div);
         });
     }
