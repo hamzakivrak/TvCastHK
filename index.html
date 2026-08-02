@@ -21,6 +21,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     
     <style>
+        /* MAVİ PARLAMAYI (TAP HIGHLIGHT) KALDIRAN KOD */
+        * {
+            -webkit-tap-highlight-color: transparent !important;
+        }
+
         :root { --bg: #000; --panel: #18191d; --surface: #23242a; --primary: #6c5ce7; --text: #fff; --border: #2d2e36; --red: #e74c3c; --fav: #f1c40f; }
         
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; width: 100vw; overflow: hidden; user-select: none; }
@@ -218,9 +223,31 @@
         
         <div class="center-buttons">
             <button class="ctrl-btn small" id="ccBtn" onclick="toggleSubtitles()" title="Altyazıyı Aç/Kapat"><i class="material-icons-round">closed_caption</i></button>
-            <button class="ctrl-btn" onclick="prevCh()"><i class="material-icons-round">skip_previous</i></button>
+            
+            <!-- GELİŞMİŞ ÖNCEKİ BUTONU (Kısa tık: Önceki Kanal | Uzun tık: Geri Sar) -->
+            <button class="ctrl-btn" 
+                onmousedown="startBtnPress(event, -1)" 
+                ontouchstart="startBtnPress(event, -1)" 
+                onmouseup="endBtnPress(event, -1)" 
+                onmouseleave="endBtnPress(event, -1)" 
+                ontouchend="endBtnPress(event, -1)" 
+                ontouchcancel="endBtnPress(event, -1)">
+                <i class="material-icons-round">skip_previous</i>
+            </button>
+            
             <button class="ctrl-btn main" id="playPauseBtn" onclick="togglePlayPause()"><i class="material-icons-round" id="playIcon">play_arrow</i></button>
-            <button class="ctrl-btn" onclick="nextCh()"><i class="material-icons-round">skip_next</i></button>
+            
+            <!-- GELİŞMİŞ SONRAKİ BUTONU (Kısa tık: Sonraki Kanal | Uzun tık: İleri Sar) -->
+            <button class="ctrl-btn" 
+                onmousedown="startBtnPress(event, 1)" 
+                ontouchstart="startBtnPress(event, 1)" 
+                onmouseup="endBtnPress(event, 1)" 
+                onmouseleave="endBtnPress(event, 1)" 
+                ontouchend="endBtnPress(event, 1)" 
+                ontouchcancel="endBtnPress(event, 1)">
+                <i class="material-icons-round">skip_next</i>
+            </button>
+            
             <button class="ctrl-btn small fav-btn" id="mainFavBtn" onclick="toggleMainFavorite()" title="Favoriye Ekle"><i class="material-icons-round" id="mainFavIcon">star_border</i></button>
         </div>
     </div>
@@ -446,14 +473,12 @@
         else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); togglePlayPause(); }
     });
 
-    // --- SWIPE / SÜRÜKLEME MANTIĞI (MOBİL VE PC BİRLEŞTİRİLDİ) ---
+    // --- SWIPE / SÜRÜKLEME MANTIĞI ---
     let touchStartY = 0;
     let isDragging = false;
     let longPressTimer;
     
     const pw = document.getElementById('playerWrapper');
-    
-    // Mobil Swipe
     pw.addEventListener('touchstart', e => { touchStartY = e.changedTouches[0].screenY; }, {passive: true});
     pw.addEventListener('touchend', e => {
         const diff = touchStartY - e.changedTouches[0].screenY;
@@ -461,7 +486,6 @@
         else if (diff < -60) prevCh(); 
     }, {passive: true});
 
-    // PC Mouse Swipe
     pw.addEventListener('mousedown', e => { isDragging = true; touchStartY = e.clientY; });
     pw.addEventListener('mouseup', e => {
         if (!isDragging) return;
@@ -472,22 +496,87 @@
     });
     pw.addEventListener('mouseleave', () => { isDragging = false; });
 
+    // --- BASILI TUTARAK SARMA MANTIĞI ---
+    let btnPressHandled = false;
+    let isHoldingBtn = false;
+    let holdTimer = null;
+    let seekInterval = null;
+
+    function startBtnPress(e, dir) {
+        // Çift algılamayı (touch ve mouse çakışmasını) engelle
+        if (e.type === 'touchstart') { btnPressHandled = true; } 
+        else if (e.type === 'mousedown' && btnPressHandled) { return; }
+        
+        isHoldingBtn = false;
+        clearTimeout(holdTimer);
+        if(seekInterval) { clearInterval(seekInterval); seekInterval = null; }
+
+        // Basılı tutulduğunu anlamak için 500ms bekle
+        holdTimer = setTimeout(() => {
+            isHoldingBtn = true;
+            // Canlı yayın değilse sarma işlemini başlat (200ms'de bir 5 saniye sarar)
+            seekInterval = setInterval(() => seekVideo(dir * 5), 200);
+            showOSD(dir === 1 ? "İleri Sarılıyor..." : "Geri Sarılıyor...");
+        }, 500);
+    }
+
+    function endBtnPress(e, dir) {
+        if (e.type === 'mouseup' && btnPressHandled) return; 
+        if (e.type === 'touchend' || e.type === 'touchcancel') {
+            setTimeout(() => { btnPressHandled = false; }, 300);
+        }
+
+        clearTimeout(holdTimer);
+        
+        // Eğer basılı tutup sarma modundaysak, moddan çık ve OSD'yi sıfırla
+        if (seekInterval) {
+            clearInterval(seekInterval);
+            seekInterval = null;
+            const chName = curIdx !== -1 ? allChannels[curIdx].name : "Oynatılıyor";
+            showOSD(chName);
+        } 
+        // Eğer 500ms dolmadan parmak çekildiyse (Kısa tıklama), sadece kanal değiştir
+        else if (!isHoldingBtn && (e.type === 'mouseup' || e.type === 'touchend')) {
+            if (dir === 1) nextCh(); else prevCh();
+        }
+        
+        isHoldingBtn = false;
+    }
+
+    function seekVideo(seconds) {
+        if (remotePlayer && remotePlayer.isConnected) {
+            remotePlayer.currentTime += seconds;
+            remoteController.seek();
+            return;
+        }
+        
+        const ytContainer = document.getElementById('ytContainer');
+        const vid = document.getElementById('localPlayer');
+        
+        if (ytContainer.style.display === 'block' && ytPlayer) {
+            const cur = ytPlayer.getCurrentTime();
+            ytPlayer.seekTo(cur + seconds, true);
+        } else {
+            // HTML5 oynatıcı sarmayı destekliyorsa (örn: VOD veya geriye dönük yayın)
+            if (vid.seekable && vid.seekable.length > 0) {
+                vid.currentTime += seconds;
+            }
+        }
+    }
+
     const leftZone = document.getElementById('leftTapZone');
     const rightZone = document.getElementById('rightTapZone');
 
-    // --- HATALARIN ÇÖZÜLDÜĞÜ FONKSİYON (FARE EVENT'LERİ EKLENDİ, SAĞ MENÜ DÜZELTİLDİ) ---
     function applySimpleModeState() {
         if (isSimpleMode) {
             rightZone.style.display = 'none';
             leftZone.onclick = null;
-            rightZone.onclick = null; // Kapalıyken tıklamaları sil
+            rightZone.onclick = null;
             
-            // Mobil basılı tutma
             leftZone.addEventListener('touchstart', startLongPress, {passive: true});
             leftZone.addEventListener('touchend', cancelLongPress, {passive: true});
             leftZone.addEventListener('touchcancel', cancelLongPress, {passive: true});
             
-            // PC Mouse basılı tutma
             leftZone.addEventListener('mousedown', startLongPress);
             leftZone.addEventListener('mouseup', cancelLongPress);
             leftZone.addEventListener('mouseleave', cancelLongPress);
@@ -499,14 +588,12 @@
         } else {
             rightZone.style.display = 'flex';
             leftZone.onclick = openLeftSidebar;
-            rightZone.onclick = openRightSidebar; // HATANIN ÇÖZÜMÜ: Tıklamayı geri ver!
+            rightZone.onclick = openRightSidebar; 
             
-            // Mobil iptal
             leftZone.removeEventListener('touchstart', startLongPress);
             leftZone.removeEventListener('touchend', cancelLongPress);
             leftZone.removeEventListener('touchcancel', cancelLongPress);
             
-            // PC Mouse iptal
             leftZone.removeEventListener('mousedown', startLongPress);
             leftZone.removeEventListener('mouseup', cancelLongPress);
             leftZone.removeEventListener('mouseleave', cancelLongPress);
