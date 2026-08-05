@@ -311,7 +311,7 @@
                         <button class="btn" id="dataSaverToggleBtn" onclick="toggleDataSaver()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px; margin:0;">Kapalı</button>
                     </div>
 
-                    <!-- YENİ: Bulut Senkronizasyon Modülü -->
+                    <!-- YENİ: Bulut Senkronizasyon Modülü (GERÇEK WORKER ENTEGRASYONU) -->
                     <div class="sub-module">
                         <span class="sub-module-title" style="color:#3498db;">Bulut Senkronizasyon (Cihazlar Arası)</span>
                         <input type="text" id="syncUserId" placeholder="Gizli Kimlik ID (Örn: hamza_tv_123)">
@@ -405,11 +405,6 @@
     const MY_CLOUD_PROXY = "https://quiet-cell-a027.hamzakivrak.workers.dev/?url=";
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
     
-    // JSONBIN.IO (Cloud Sync için ücretsiz veritabanı API örneği)
-    // Eğer kendiniz jsonbin kullanmak isterseniz "Master Key" kısmını buraya ekleyebilirsiniz.
-    // Şimdilik test amaçlı public JSON Bin URL'si kullanan genel bir şablon bırakıldı.
-    const SYNC_API_URL = "https://api.jsonbin.io/v3/b"; 
-    
     let allChannels = [];
     let curIdx = -1;
     let hls = null;
@@ -455,7 +450,7 @@
         if (curIdx !== -1) play(curIdx, 0);
     }
 
-    /* BULUT SENKRONİZASYON (CLOUD SYNC) FONKSİYONLARI */
+    /* BULUT SENKRONİZASYON (GERÇEK WORKER) FONKSİYONLARI */
     async function syncDataToCloud() {
         const userId = document.getElementById('syncUserId').value.trim();
         if (!userId) { alert("Lütfen yedeklemek için benzersiz bir kimlik (ID) girin."); return; }
@@ -465,7 +460,6 @@
         stat.innerText = "Yedekleniyor...";
         stat.style.color = "#f1c40f";
 
-        // Tüm veriyi paketle
         const payload = {
             favorites: favUrls,
             broken: brokenUrls,
@@ -477,32 +471,18 @@
         };
 
         try {
-            // Gerçek bir API'ye istek atmak için örnek fetch (JSONBIN)
-            // Eğer Worker'ınız varsa adresi "https://sizin-worker.com/save?id=" + userId şeklinde değiştirebilirsiniz.
-            
-            // Simülasyon: Tarayıcının 'localStorage'ından tamamen bağımsız gibi çalışması için public gist veya kendi sunucunuza post atılmalıdır.
-            // Bu örnekte public key-value store hizmeti olan myjson/jsonbin mantığı veya Worker'ı simüle ediyoruz:
-            
-            /* GERÇEK KULLANIM İÇİN BURAYI AÇIN VE URL'Yİ KENDİ SUNUCUNUZ YAPIN:
-            const response = await fetch(`https://sizin-veritabaniniz.com/api/sync/${userId}`, {
+            const workerBaseUrl = MY_CLOUD_PROXY.split('?url=')[0]; 
+            const response = await fetch(`${workerBaseUrl}sync/${userId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+            
             if(!response.ok) throw new Error("Sunucu reddetti");
-            */
             
-            // Eğer sunucunuz yoksa geçici (fake) olarak localStorage içine bulut gibi yazarız ki diğer sekmelerde denenebilsin. 
-            // (Asıl çözüm kullanıcının kendi Worker'ına yukarıdaki POST kodunu atmasıdır).
-            localStorage.setItem('CLOUD_BACKUP_' + userId, JSON.stringify(payload)); 
-            
-            // Yapay gecikme (Bulut hissi)
-            setTimeout(() => {
-                stat.innerText = "Başarıyla Buluta Yedeklendi!";
-                stat.style.color = "#2ecc71";
-                showOSD("Yedekleme Başarılı", "ID: " + userId);
-            }, 1000);
-
+            stat.innerText = "Başarıyla Buluta Yedeklendi!";
+            stat.style.color = "#2ecc71";
+            showOSD("Yedekleme Başarılı", "ID: " + userId);
         } catch (e) {
             stat.innerText = "Yedekleme Hatası!";
             stat.style.color = "#e74c3c";
@@ -519,34 +499,25 @@
         stat.style.color = "#f1c40f";
 
         try {
-            /* GERÇEK KULLANIM İÇİN BURAYI AÇIN:
-            const response = await fetch(`https://sizin-veritabaniniz.com/api/sync/${userId}`);
-            if(!response.ok) throw new Error("Bulunamadı");
-            const data = await response.json();
-            */
-           
-            // Fake API okuma simülasyonu
-            const dataStr = localStorage.getItem('CLOUD_BACKUP_' + userId);
-            if (!dataStr) throw new Error("Bu ID için yedek bulunamadı.");
-            const data = JSON.parse(dataStr);
+            const workerBaseUrl = MY_CLOUD_PROXY.split('?url=')[0];
+            const response = await fetch(`${workerBaseUrl}sync/${userId}`);
             
-            setTimeout(() => {
-                // Verileri yerel depolamaya aktar
-                localStorage.setItem('tv_favorites', JSON.stringify(data.favorites || []));
-                localStorage.setItem('tv_broken', JSON.stringify(data.broken || []));
-                localStorage.setItem('tv_custom', JSON.stringify(data.custom || []));
-                localStorage.setItem('tv_presets', JSON.stringify(data.presets || []));
-                localStorage.setItem('tv_extras_dict', JSON.stringify(data.extras || {}));
-                localStorage.setItem('tv_yt_playlists', JSON.stringify(data.ytPlaylists || []));
-                if(data.lastContext) localStorage.setItem('tv_last_context', data.lastContext);
-                
-                stat.innerText = "Cihaz Eşitlendi! Yeniden Başlatılıyor...";
-                stat.style.color = "#2ecc71";
-                showOSD("Eşitleme Tamam", "Sayfa yenileniyor...");
-                
-                setTimeout(() => window.location.reload(), 1500);
-            }, 1000);
-
+            if(!response.ok) throw new Error("Bu ID için yedek bulunamadı");
+            const data = await response.json();
+            
+            localStorage.setItem('tv_favorites', JSON.stringify(data.favorites || []));
+            localStorage.setItem('tv_broken', JSON.stringify(data.broken || []));
+            localStorage.setItem('tv_custom', JSON.stringify(data.custom || []));
+            localStorage.setItem('tv_presets', JSON.stringify(data.presets || []));
+            localStorage.setItem('tv_extras_dict', JSON.stringify(data.extras || {}));
+            localStorage.setItem('tv_yt_playlists', JSON.stringify(data.ytPlaylists || []));
+            if(data.lastContext) localStorage.setItem('tv_last_context', data.lastContext);
+            
+            stat.innerText = "Cihaz Eşitlendi! Yeniden Başlatılıyor...";
+            stat.style.color = "#2ecc71";
+            showOSD("Eşitleme Tamam", "Sayfa yenileniyor...");
+            
+            setTimeout(() => window.location.reload(), 1500);
         } catch (e) {
             stat.innerText = "Hata: " + e.message;
             stat.style.color = "#e74c3c";
@@ -755,7 +726,6 @@
             const optR = document.createElement('option'); optR.value = 'ytpl_' + p.id; optR.innerText = "📺 " + p.name; ytGrpRight.appendChild(optR);
         });
         
-        // Açılır menüyü localStorage'daki son bağlama (context) göre seçili yap
         const selectElementL = document.getElementById('countrySelect');
         const selectElementR = document.getElementById('rightCountrySelect');
         if(currentListContext) {
@@ -1082,7 +1052,6 @@
     function playLocally(url, sessionToken) {
         const video = document.getElementById('localPlayer'); const ytContainer = document.getElementById('ytContainer'); document.getElementById('castOnlyScreen').style.display = 'none'; video.onerror = null; 
         
-        // HLS sızıntılarını engellemek için eski instance'ı temizle
         if (hls) { hls.destroy(); hls = null; }
         
         const ytId = extractYTId(url);
@@ -1092,7 +1061,6 @@
         } else {
             ytContainer.style.display = 'none'; if (isYtApiReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo(); video.style.display = 'block';
             if (Hls.isSupported()) { 
-                // VERİ TASARRUFU KONTROLÜ
                 const hlsConfig = { 
                     manifestLoadingTimeOut: 10000, 
                     manifestLoadingMaxRetry: 3, 
@@ -1101,7 +1069,7 @@
                 };
                 
                 if (isDataSaver) {
-                    hlsConfig.autoLevelCapping = 0; // Olası en düşük çözünürlük
+                    hlsConfig.autoLevelCapping = 0; 
                     hlsConfig.capLevelToPlayerSize = true;
                 }
                 
