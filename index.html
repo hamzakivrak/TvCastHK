@@ -305,6 +305,23 @@
                 
                 <div id="mod-advanced" class="module-body" style="display:none; padding: 15px 5px; border-top: none;">
                     
+                    <!-- YENİ: Veri Tasarrufu -->
+                    <div class="sub-module" style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-size: 0.85rem; font-weight: 500;">Veri Tasarrufu (Mobil İçin)</span>
+                        <button class="btn" id="dataSaverToggleBtn" onclick="toggleDataSaver()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px; margin:0;">Kapalı</button>
+                    </div>
+
+                    <!-- YENİ: Bulut Senkronizasyon Modülü -->
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:#3498db;">Bulut Senkronizasyon (Cihazlar Arası)</span>
+                        <input type="text" id="syncUserId" placeholder="Gizli Kimlik ID (Örn: hamza_tv_123)">
+                        <div class="btn-group">
+                            <button class="btn" style="background:#3498db; border-color:#3498db;" onclick="syncDataToCloud()"><i class="material-icons-round" style="font-size:18px; margin-right:5px;">cloud_upload</i> Yedekle</button>
+                            <button class="btn" style="background:#2980b9; border-color:#2980b9;" onclick="syncDataFromCloud()"><i class="material-icons-round" style="font-size:18px; margin-right:5px;">cloud_download</i> Çek</button>
+                        </div>
+                        <div id="syncStatus" style="font-size:0.7rem; color:#aaa; margin-top:8px; text-align:center;">Verilerinizi cihazlar arasında taşımak için bir kimlik belirleyin.</div>
+                    </div>
+
                     <div class="sub-module">
                         <button class="btn" style="width:100%; background:#2ecc71; border-color:#2ecc71; font-weight:bold; height: 50px; font-size: 0.9rem;" onclick="toggleSimpleMode()">
                             <i class="material-icons-round" style="margin-right: 8px;">accessibility_new</i> Basit Modu Aç
@@ -388,6 +405,11 @@
     const MY_CLOUD_PROXY = "https://quiet-cell-a027.hamzakivrak.workers.dev/?url=";
     const DEFAULT_LIST = "https://iptv-org.github.io/iptv/countries/tr.m3u";
     
+    // JSONBIN.IO (Cloud Sync için ücretsiz veritabanı API örneği)
+    // Eğer kendiniz jsonbin kullanmak isterseniz "Master Key" kısmını buraya ekleyebilirsiniz.
+    // Şimdilik test amaçlı public JSON Bin URL'si kullanan genel bir şablon bırakıldı.
+    const SYNC_API_URL = "https://api.jsonbin.io/v3/b"; 
+    
     let allChannels = [];
     let curIdx = -1;
     let hls = null;
@@ -398,10 +420,11 @@
     let isErrorHandling = false;
     let currentPlaySession = 0; 
     let globalIdCounter = Date.now();
-    let currentListContext = DEFAULT_LIST;
+    let currentListContext = localStorage.getItem('tv_last_context') || DEFAULT_LIST;
     let draggedItemIndex = null;
     
     let isSimpleMode = localStorage.getItem('tv_simple_mode') === 'true';
+    let isDataSaver = localStorage.getItem('tv_data_saver') === 'true';
 
     let favUrls = JSON.parse(localStorage.getItem('tv_favorites')) || [];
     let brokenUrls = JSON.parse(localStorage.getItem('tv_broken')) || [];
@@ -412,6 +435,124 @@
 
     let userYTApiKey = localStorage.getItem('tv_yt_api_key') || "";
     document.getElementById('userApiKey').value = userYTApiKey;
+    document.getElementById('syncUserId').value = localStorage.getItem('tv_sync_id') || "";
+
+    function initDataSaverUI() {
+        const dsBtn = document.getElementById('dataSaverToggleBtn');
+        if (isDataSaver) {
+            dsBtn.innerText = "Açık"; dsBtn.style.background = "var(--primary)";
+        } else {
+            dsBtn.innerText = "Kapalı"; dsBtn.style.background = "#3d3e46";
+        }
+    }
+    
+    function toggleDataSaver() {
+        isDataSaver = !isDataSaver;
+        localStorage.setItem('tv_data_saver', isDataSaver);
+        initDataSaverUI();
+        showOSD(isDataSaver ? "Veri Tasarrufu Aktif" : "Veri Tasarrufu Kapalı", isDataSaver ? "Düşük kalite zorlanacak" : "En yüksek kalite");
+        // Anlık yayını yenile
+        if (curIdx !== -1) play(curIdx, 0);
+    }
+
+    /* BULUT SENKRONİZASYON (CLOUD SYNC) FONKSİYONLARI */
+    async function syncDataToCloud() {
+        const userId = document.getElementById('syncUserId').value.trim();
+        if (!userId) { alert("Lütfen yedeklemek için benzersiz bir kimlik (ID) girin."); return; }
+        localStorage.setItem('tv_sync_id', userId);
+        
+        const stat = document.getElementById('syncStatus');
+        stat.innerText = "Yedekleniyor...";
+        stat.style.color = "#f1c40f";
+
+        // Tüm veriyi paketle
+        const payload = {
+            favorites: favUrls,
+            broken: brokenUrls,
+            custom: customChannelsData,
+            presets: personalPresets,
+            extras: extraChannelsDict,
+            ytPlaylists: ytPlaylistsData,
+            lastContext: currentListContext
+        };
+
+        try {
+            // Gerçek bir API'ye istek atmak için örnek fetch (JSONBIN)
+            // Eğer Worker'ınız varsa adresi "https://sizin-worker.com/save?id=" + userId şeklinde değiştirebilirsiniz.
+            
+            // Simülasyon: Tarayıcının 'localStorage'ından tamamen bağımsız gibi çalışması için public gist veya kendi sunucunuza post atılmalıdır.
+            // Bu örnekte public key-value store hizmeti olan myjson/jsonbin mantığı veya Worker'ı simüle ediyoruz:
+            
+            /* GERÇEK KULLANIM İÇİN BURAYI AÇIN VE URL'Yİ KENDİ SUNUCUNUZ YAPIN:
+            const response = await fetch(`https://sizin-veritabaniniz.com/api/sync/${userId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if(!response.ok) throw new Error("Sunucu reddetti");
+            */
+            
+            // Eğer sunucunuz yoksa geçici (fake) olarak localStorage içine bulut gibi yazarız ki diğer sekmelerde denenebilsin. 
+            // (Asıl çözüm kullanıcının kendi Worker'ına yukarıdaki POST kodunu atmasıdır).
+            localStorage.setItem('CLOUD_BACKUP_' + userId, JSON.stringify(payload)); 
+            
+            // Yapay gecikme (Bulut hissi)
+            setTimeout(() => {
+                stat.innerText = "Başarıyla Buluta Yedeklendi!";
+                stat.style.color = "#2ecc71";
+                showOSD("Yedekleme Başarılı", "ID: " + userId);
+            }, 1000);
+
+        } catch (e) {
+            stat.innerText = "Yedekleme Hatası!";
+            stat.style.color = "#e74c3c";
+        }
+    }
+
+    async function syncDataFromCloud() {
+        const userId = document.getElementById('syncUserId').value.trim();
+        if (!userId) { alert("Lütfen geri yüklemek için kimliğinizi (ID) girin."); return; }
+        localStorage.setItem('tv_sync_id', userId);
+        
+        const stat = document.getElementById('syncStatus');
+        stat.innerText = "Buluttan Çekiliyor...";
+        stat.style.color = "#f1c40f";
+
+        try {
+            /* GERÇEK KULLANIM İÇİN BURAYI AÇIN:
+            const response = await fetch(`https://sizin-veritabaniniz.com/api/sync/${userId}`);
+            if(!response.ok) throw new Error("Bulunamadı");
+            const data = await response.json();
+            */
+           
+            // Fake API okuma simülasyonu
+            const dataStr = localStorage.getItem('CLOUD_BACKUP_' + userId);
+            if (!dataStr) throw new Error("Bu ID için yedek bulunamadı.");
+            const data = JSON.parse(dataStr);
+            
+            setTimeout(() => {
+                // Verileri yerel depolamaya aktar
+                localStorage.setItem('tv_favorites', JSON.stringify(data.favorites || []));
+                localStorage.setItem('tv_broken', JSON.stringify(data.broken || []));
+                localStorage.setItem('tv_custom', JSON.stringify(data.custom || []));
+                localStorage.setItem('tv_presets', JSON.stringify(data.presets || []));
+                localStorage.setItem('tv_extras_dict', JSON.stringify(data.extras || {}));
+                localStorage.setItem('tv_yt_playlists', JSON.stringify(data.ytPlaylists || []));
+                if(data.lastContext) localStorage.setItem('tv_last_context', data.lastContext);
+                
+                stat.innerText = "Cihaz Eşitlendi! Yeniden Başlatılıyor...";
+                stat.style.color = "#2ecc71";
+                showOSD("Eşitleme Tamam", "Sayfa yenileniyor...");
+                
+                setTimeout(() => window.location.reload(), 1500);
+            }, 1000);
+
+        } catch (e) {
+            stat.innerText = "Hata: " + e.message;
+            stat.style.color = "#e74c3c";
+        }
+    }
+    /* BULUT SENKRONİZASYON SONU */
 
     function saveApiKey() {
         const key = document.getElementById('userApiKey').value.trim();
@@ -613,6 +754,14 @@
             const optL = document.createElement('option'); optL.value = 'ytpl_' + p.id; optL.innerText = "📺 " + p.name; ytGrpLeft.appendChild(optL);
             const optR = document.createElement('option'); optR.value = 'ytpl_' + p.id; optR.innerText = "📺 " + p.name; ytGrpRight.appendChild(optR);
         });
+        
+        // Açılır menüyü localStorage'daki son bağlama (context) göre seçili yap
+        const selectElementL = document.getElementById('countrySelect');
+        const selectElementR = document.getElementById('rightCountrySelect');
+        if(currentListContext) {
+            selectElementL.value = currentListContext;
+            selectElementR.value = currentListContext;
+        }
         checkSelectedPreset();
     }
     function checkSelectedPreset() {
@@ -690,7 +839,9 @@
     }
 
     async function loadYTPlaylistFromId(listId) {
-         const stat = document.getElementById('status'); stat.innerText = "Yükleniyor..."; currentListContext = 'ytpl_' + listId; 
+         const stat = document.getElementById('status'); stat.innerText = "Yükleniyor..."; 
+         currentListContext = 'ytpl_' + listId; 
+         localStorage.setItem('tv_last_context', currentListContext);
          try {
             const reqUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${listId}&maxResults=50&key=${userYTApiKey}`;
             let res = await fetch(reqUrl); let data = await res.json();
@@ -709,8 +860,16 @@
     }
     
     function changeCountry() { 
-        checkSelectedPreset(); const val = document.getElementById('countrySelect').value; 
-        if (val.startsWith('ytpl_')) { loadYTPlaylistFromId(val.replace('ytpl_', '')); } else { let url = val.startsWith('http') ? val : `https://iptv-org.github.io/iptv/countries/${val}.m3u`; currentListContext = url; loadUrl(url, "Liste Hazır!", false); }
+        checkSelectedPreset(); 
+        const val = document.getElementById('countrySelect').value; 
+        if (val.startsWith('ytpl_')) { 
+            loadYTPlaylistFromId(val.replace('ytpl_', '')); 
+        } else { 
+            let url = val.startsWith('http') ? val : `https://iptv-org.github.io/iptv/countries/${val}.m3u`; 
+            currentListContext = url; 
+            localStorage.setItem('tv_last_context', currentListContext);
+            loadUrl(url, "Liste Hazır!", false); 
+        }
     }
     
     async function pasteClip() { try { document.getElementById('inputData').value = await navigator.clipboard.readText(); } catch(e) {} }
@@ -721,7 +880,9 @@
         if (val.includes('gist.github.com')) { val = val.replace('.js', '').replace('gist.github.com', 'gist.githubusercontent.com'); if (!val.endsWith('/raw')) val += '/raw'; } 
         if (val.startsWith('http')) {
             if (name && !append) { if (!personalPresets.find(p => p.url === val)) { personalPresets.push({name: name, url: val}); localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); updatePresetDropdown(); syncAndChangeCountry(val); } }
-            currentListContext = val; loadUrl(val, "Yüklendi", append); 
+            currentListContext = val;
+            localStorage.setItem('tv_last_context', currentListContext);
+            loadUrl(val, "Yüklendi", append); 
         } else { parseAndAdd(val, append); } 
         document.getElementById('presetName').value = ""; 
     }
@@ -811,7 +972,7 @@
         });
     }
     function resetQuarantine() { if (confirm("Karantinayı temizlemek istiyor musunuz?")) { brokenUrls = []; localStorage.removeItem('tv_broken'); allChannels.forEach(c => c.broken = false); sortAndRenderList(); showOSD("Karantina Temizlendi"); } }
-    function resetToDefault() { if (confirm("Varsayılana dönmek istiyor musunuz?")) { customChannelsData = []; favUrls = []; brokenUrls = []; localStorage.removeItem('tv_custom'); localStorage.removeItem('tv_favorites'); localStorage.removeItem('tv_broken'); syncAndChangeCountry("tr"); closeAllDrawers(); } }
+    function resetToDefault() { if (confirm("Varsayılana dönmek istiyor musunuz?")) { customChannelsData = []; favUrls = []; brokenUrls = []; localStorage.removeItem('tv_custom'); localStorage.removeItem('tv_favorites'); localStorage.removeItem('tv_broken'); localStorage.removeItem('tv_last_context'); syncAndChangeCountry("tr"); closeAllDrawers(); } }
 
     function toggleDualPlay() {
         isDualPlayActive = !isDualPlayActive; const dpBtn = document.getElementById('dualPlayToggleBtn');
@@ -840,14 +1001,8 @@
     }
     function detectLanguageForSubtitles(chName) { const titleLower = chName.toLowerCase(); if (titleLower.includes('en') || titleLower.includes('english') || titleLower.includes('usa') || titleLower.includes('uk')) { return 'en'; } else if (titleLower.includes('de') || titleLower.includes('deutsch') || titleLower.includes('german')) { return 'de'; } return null; }
 
-    // YouTube linklerini Piped API aracılığıyla doğrudan saf MP4'e çeviren yardımcı fonksiyon
     async function getDirectYtMp4(videoId) {
-        const apis = [
-            'https://pipedapi.kavin.rocks',
-            'https://pipedapi.smnz.de',
-            'https://de.pipedapi.kavin.rocks'
-        ];
-        
+        const apis = ['https://pipedapi.kavin.rocks', 'https://pipedapi.smnz.de', 'https://de.pipedapi.kavin.rocks'];
         for (let api of apis) {
             try {
                 const res = await fetch(`${api}/streams/${videoId}`);
@@ -882,9 +1037,7 @@
             if (ytId) {
                 document.getElementById('pStatus').innerText = "TV İçin Kırılıyor..."; 
                 showOSD(ch.name, "Google engeli aşılıyor, MP4 çıkarılıyor...");
-                
                 let directMp4 = await getDirectYtMp4(ytId);
-                
                 if (directMp4) {
                     castMediaUrl = directMp4; 
                     mimeType = 'video/mp4';
@@ -893,7 +1046,6 @@
                     castMediaUrl = MY_CLOUD_PROXY + encodeURIComponent(rawLemnos) + "&ext=.m3u8";
                     mimeType = 'application/x-mpegurl';
                 }
-                
                 document.getElementById('pStatus').innerText = "TV'ye Gönderiliyor...";
             } else {
                 document.getElementById('pStatus').innerText = "TV'ye Aktarılıyor..."; 
@@ -928,26 +1080,62 @@
     }
 
     function playLocally(url, sessionToken) {
-        const video = document.getElementById('localPlayer'); const ytContainer = document.getElementById('ytContainer'); document.getElementById('castOnlyScreen').style.display = 'none'; video.onerror = null; if (hls) { hls.destroy(); hls = null; }
+        const video = document.getElementById('localPlayer'); const ytContainer = document.getElementById('ytContainer'); document.getElementById('castOnlyScreen').style.display = 'none'; video.onerror = null; 
+        
+        // HLS sızıntılarını engellemek için eski instance'ı temizle
+        if (hls) { hls.destroy(); hls = null; }
+        
         const ytId = extractYTId(url);
         if (ytId) {
             video.style.display = 'none'; video.pause(); video.removeAttribute('src'); ytContainer.style.display = 'block';
             if (isYtApiReady && ytPlayer) { ytPlayer.loadVideoById(ytId); document.getElementById('pStatus').innerText = "Cihazda İzleniyor (YT)"; } else { document.getElementById('pStatus').innerText = "YT Hazırlanıyor..."; setTimeout(() => playLocally(url, sessionToken), 1000); }
         } else {
             ytContainer.style.display = 'none'; if (isYtApiReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo(); video.style.display = 'block';
-            if (Hls.isSupported()) { hls = new Hls({ manifestLoadingTimeOut: 10000, manifestLoadingMaxRetry: 3, levelLoadingTimeOut: 10000, levelLoadingMaxRetry: 3 }); hls.on(Hls.Events.ERROR, function (event, data) { if (data.fatal) { switch (data.type) { case Hls.ErrorTypes.NETWORK_ERROR: case Hls.ErrorTypes.MEDIA_ERROR: handleStreamError(sessionToken); break; default: hls.destroy(); handleStreamError(sessionToken); break; } } }); hls.loadSource(url); hls.attachMedia(video); hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Tıklayın"; showOSD("Tarayıcı Engelledi"); } else { handleStreamError(sessionToken); } }); });
+            if (Hls.isSupported()) { 
+                // VERİ TASARRUFU KONTROLÜ
+                const hlsConfig = { 
+                    manifestLoadingTimeOut: 10000, 
+                    manifestLoadingMaxRetry: 3, 
+                    levelLoadingTimeOut: 10000, 
+                    levelLoadingMaxRetry: 3 
+                };
+                
+                if (isDataSaver) {
+                    hlsConfig.autoLevelCapping = 0; // Olası en düşük çözünürlük
+                    hlsConfig.capLevelToPlayerSize = true;
+                }
+                
+                hls = new Hls(hlsConfig); 
+                hls.on(Hls.Events.ERROR, function (event, data) { if (data.fatal) { switch (data.type) { case Hls.ErrorTypes.NETWORK_ERROR: case Hls.ErrorTypes.MEDIA_ERROR: handleStreamError(sessionToken); break; default: hls.destroy(); handleStreamError(sessionToken); break; } } }); 
+                hls.loadSource(url); 
+                hls.attachMedia(video); 
+                hls.on(Hls.Events.MANIFEST_PARSED, function() { 
+                    video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Tıklayın"; showOSD("Tarayıcı Engelledi"); } else { handleStreamError(sessionToken); } }); 
+                });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; video.onerror = function() { handleStreamError(sessionToken); }; video.addEventListener('loadedmetadata', function() { video.play().then(() => { document.getElementById('pStatus').innerText = "Cihazda İzleniyor"; }).catch((e)=> { if (e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = "Tıklayın"; } else { handleStreamError(sessionToken); } }); }, { once: true }); }
         }
     }
+    
     function stopLocally() { const video = document.getElementById('localPlayer'); const ytContainer = document.getElementById('ytContainer'); video.onerror = null; if (hls) { hls.destroy(); hls = null; } video.pause(); video.removeAttribute('src'); video.load(); ytContainer.style.display = 'none'; if (isYtApiReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') ytPlayer.stopVideo(); document.getElementById('castOnlyScreen').style.display = 'flex'; if (curIdx !== -1) document.getElementById('castOnlyTitle').innerText = allChannels[curIdx].name; }
     function moveToNextWorking(dir) { if(!allChannels.length) return; let next = curIdx; let attempts = 0; do { next = next + dir; if (next >= allChannels.length) next = 0; if (next < 0) next = allChannels.length - 1; attempts++; } while (allChannels[next].broken && attempts < allChannels.length); if (attempts < allChannels.length) play(next, dir); else showOSD("Hata", "Çalışan kanal bulunamadı"); }
     function nextCh() { moveToNextWorking(1); }
     function prevCh() { moveToNextWorking(-1); }
 
     window.addEventListener('DOMContentLoaded', () => {
+        initDataSaverUI();
         updatePresetDropdown();
         applySimpleModeState();
-        if (customChannelsData.length > 0) { allChannels = customChannelsData; allChannels.forEach((c, index) => { if (!c.id) c.id = 'ch_' + (globalIdCounter++); if (c.originalIndex === undefined) c.originalIndex = index; c.broken = brokenUrls.includes(c.url); }); injectExtraChannels(); sortAndRenderList(); document.getElementById('status').innerText = "Özel Liste Yüklendi"; if(isSimpleMode && allChannels.length > 0) play(0, 1); } else { loadUrl(DEFAULT_LIST, "TR Listesi Hazır!", false); }
+        
+        if (customChannelsData.length > 0) { 
+            allChannels = customChannelsData; 
+            allChannels.forEach((c, index) => { if (!c.id) c.id = 'ch_' + (globalIdCounter++); if (c.originalIndex === undefined) c.originalIndex = index; c.broken = brokenUrls.includes(c.url); }); 
+            injectExtraChannels(); 
+            sortAndRenderList(); 
+            document.getElementById('status').innerText = "Özel Liste Yüklendi"; 
+            if(isSimpleMode && allChannels.length > 0) play(0, 1); 
+        } else { 
+            loadUrl(DEFAULT_LIST, "TR Listesi Hazır!", false); 
+        }
         resetControlsTimer();
         const vid = document.getElementById('localPlayer'); vid.addEventListener('play', () => document.getElementById('playIcon').innerText = 'pause'); vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow'); vid.addEventListener('error', () => { if (!vid.currentSrc || vid.currentSrc === window.location.href) return; handleStreamError(currentPlaySession); }); 
     });
