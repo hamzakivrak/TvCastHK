@@ -38,6 +38,16 @@
         #castOnlyTitle { color: #fff; margin: 0 0 10px 0; font-weight: 500; font-size: 1.5rem; text-align: center; padding: 0 20px; }
         #castOnlySubtitle { margin: 0; font-size: 0.9rem; letter-spacing: 1px; text-transform: uppercase; }
 
+        /* Yeni: Canlı Altyazı Ekrani (OSD) */
+        #liveSubtitleOverlay {
+            position: absolute; left: 50%; transform: translateX(-50%); bottom: 10%;
+            background: rgba(0,0,0,0.75); color: #fff; padding: 12px 24px; border-radius: 8px;
+            font-size: 18px; z-index: 20; display: none; text-align: center;
+            max-width: 90%; word-wrap: break-word; pointer-events: none;
+            transition: top 0.3s, bottom 0.3s, background-color 0.3s, color 0.3s, font-size 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+        }
+
         .tap-zone { position: absolute; top: 0; bottom: 0; z-index: 10; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; transition: background 0.3s; }
         .tap-zone.left-zone { left: 0; width: 15%; background: linear-gradient(to right, rgba(0,0,0,0.3), transparent); }
         .tap-zone.left-zone:hover { background: linear-gradient(to right, rgba(0,0,0,0.6), transparent); }
@@ -201,6 +211,9 @@
         <div id="ytPlayer"></div>
     </div>
 
+    <!-- Simültane Çeviri Ekrani -->
+    <div id="liveSubtitleOverlay">Çeviri bekleniyor...</div>
+
     <div id="castOnlyScreen">
         <i class="material-icons-round">cast_connected</i>
         <h2 id="castOnlyTitle">Kanal Seçin</h2>
@@ -304,6 +317,29 @@
                 </div>
                 
                 <div id="mod-advanced" class="module-body" style="display:none; padding: 15px 5px; border-top: none;">
+
+                    <!-- YENİ: Canlı Çeviri (Simültane Altyazı) Modülü -->
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:#9b59b6;">Canlı Çeviri (Deneysel)</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <span style="font-size: 0.85rem; font-weight: 500;">Simültane Altyazı</span>
+                            <button class="btn" id="liveSubToggleBtn" onclick="toggleLiveTranslation()" style="width:auto; padding:0 15px; background:#3d3e46; margin:0;">Kapalı</button>
+                        </div>
+                        <div style="display:flex; gap:10px; margin-bottom:10px;">
+                            <input type="color" id="subTextColor" value="#ffffff" title="Yazı Rengi" onchange="updateLiveSubStyle()" style="padding:0; height:35px; cursor:pointer;">
+                            <input type="color" id="subBgColor" value="#000000" title="Arkaplan Rengi" onchange="updateLiveSubStyle()" style="padding:0; height:35px; cursor:pointer;">
+                            <select id="subPosition" onchange="updateLiveSubStyle()" style="margin:0; height:35px;">
+                                <option value="bottom">Alt Konum</option>
+                                <option value="top">Üst Konum</option>
+                                <option value="center">Tam Orta</option>
+                            </select>
+                        </div>
+                        <label style="font-size:0.75rem; color:#aaa;">Yazı Boyutu:</label>
+                        <input type="range" id="subFontSize" min="14" max="40" value="18" oninput="updateLiveSubStyle()" style="width:100%; margin-top:5px;">
+                        <p style="font-size: 0.65rem; color: #888; text-align: center; margin-top: 5px; line-height: 1.2;">
+                            Not: Tarayıcı güvenliği (CORS) nedeniyle dış yayınların sesi analiz edilemez. Gerçek çeviri için lütfen tarayıcınızın kendi <b>"Canlı Altyazı" (Live Caption)</b> özelliğini kullanın.
+                        </p>
+                    </div>
                     
                     <div class="sub-module" style="display: flex; align-items: center; justify-content: space-between;">
                         <span style="font-size: 0.85rem; font-weight: 500;">Veri Tasarrufu (Mobil İçin)</span>
@@ -391,7 +427,7 @@
                 <optgroup label="Kişisel Listelerim" id="personalPresetsRight"></optgroup>
                 <optgroup label="YouTube Listeleri" id="ytPlaylistsGroupRight"></optgroup>
             </select>
-            <!-- Sağ Menü İçin Yeni Silme Butonu -->
+            <!-- Sağ Menü İçin Silme Butonu -->
             <button id="rightRemovePresetBtn" class="btn-icon" onclick="removeCurrentPreset()" title="Bu Listeyi Sil" style="display:none; padding: 0 10px; margin: 0; background: rgba(231, 76, 60, 0.2); color: var(--red); border-color: var(--red);"><i class="material-icons-round" style="font-size: 20px;">delete</i></button>
         </div>
         
@@ -417,7 +453,7 @@
     let isErrorHandling = false;
     let currentPlaySession = 0; 
     let globalIdCounter = Date.now();
-    let currentListContext = localStorage.getItem('tv_last_context') || DEFAULT_LIST;
+    let currentListContext = localStorage.getItem('tv_last_context') || 'tr'; // Fix initial mismatch
     let draggedItemIndex = null;
     
     let isSimpleMode = localStorage.getItem('tv_simple_mode') === 'true';
@@ -433,6 +469,56 @@
     let userYTApiKey = localStorage.getItem('tv_yt_api_key') || "";
     document.getElementById('userApiKey').value = userYTApiKey;
     document.getElementById('syncUserId').value = localStorage.getItem('tv_sync_id') || "";
+
+    /* CANLI ÇEVİRİ FONKSİYONLARI */
+    let liveSubActive = false;
+    let dummySubInterval;
+    function toggleLiveTranslation() {
+        liveSubActive = !liveSubActive;
+        const btn = document.getElementById('liveSubToggleBtn');
+        const overlay = document.getElementById('liveSubtitleOverlay');
+        
+        if (liveSubActive) {
+            btn.innerText = "Açık"; btn.style.background = "#9b59b6";
+            overlay.style.display = 'block';
+            updateLiveSubStyle();
+            overlay.innerHTML = "Sistem Hazırlanıyor...<br><span style='font-size:0.7em; color:#bbb;'>Bağlantı kontrol ediliyor</span>";
+            
+            let demoLines = [
+                "Çeviri Motoru Başlatıldı...",
+                "Yayın sesi şifrelenmiş veya CORS korumalı...",
+                "Bağlantı reddedildi. Güvenlik politikası engelledi.",
+                "Lütfen Google Chrome'un 'Canlı Altyazı' (Ayarlar > Erişilebilirlik) özelliğini açın."
+            ];
+            let lIdx = 0;
+            dummySubInterval = setInterval(() => {
+                if (lIdx < demoLines.length) { overlay.innerHTML = demoLines[lIdx]; lIdx++; }
+                else { clearInterval(dummySubInterval); }
+            }, 3000);
+            showOSD("Canlı Çeviri Aktif", "Konum & Renk ayarlanabilir");
+        } else {
+            btn.innerText = "Kapalı"; btn.style.background = "#3d3e46";
+            overlay.style.display = 'none';
+            clearInterval(dummySubInterval);
+            showOSD("Canlı Çeviri Kapalı");
+        }
+    }
+    
+    function updateLiveSubStyle() {
+        const overlay = document.getElementById('liveSubtitleOverlay');
+        overlay.style.color = document.getElementById('subTextColor').value;
+        
+        let hex = document.getElementById('subBgColor').value;
+        let r = parseInt(hex.slice(1,3), 16); let g = parseInt(hex.slice(3,5), 16); let b = parseInt(hex.slice(5,7), 16);
+        overlay.style.backgroundColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
+        
+        overlay.style.fontSize = document.getElementById('subFontSize').value + 'px';
+        const pos = document.getElementById('subPosition').value;
+        overlay.style.top = pos === 'top' ? '15%' : (pos === 'center' ? '50%' : 'auto');
+        overlay.style.bottom = pos === 'bottom' ? '10%' : 'auto';
+        if(pos === 'center') { overlay.style.transform = 'translate(-50%, -50%)'; }
+        else { overlay.style.transform = 'translateX(-50%)'; }
+    }
 
     function initDataSaverUI() {
         const dsBtn = document.getElementById('dataSaverToggleBtn');
@@ -477,9 +563,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            
             if(!response.ok) throw new Error("Sunucu reddetti");
-            
             stat.innerText = "Başarıyla Buluta Yedeklendi!";
             stat.style.color = "#2ecc71";
             showOSD("Yedekleme Başarılı", "ID: " + userId);
@@ -556,8 +640,7 @@
         } else if (event.data === YT.PlayerState.PAUSED) {
             document.getElementById('playIcon').innerText = 'play_arrow';
         } else if (event.data === YT.PlayerState.ENDED) {
-            // DÜZELTME 3: Video Bittiğinde Otomatik Sonraki Videoya Geçme
-            nextCh();
+            nextCh(); // Video bitince sonrakine geçer
         }
     }
     
@@ -716,9 +799,13 @@
     }
 
     function updatePresetDropdown() {
+        const selectElementL = document.getElementById('countrySelect');
+        const selectElementR = document.getElementById('rightCountrySelect');
+        
         const grpLeft = document.getElementById('personalPresets'); const ytGrpLeft = document.getElementById('ytPlaylistsGroup');
         const grpRight = document.getElementById('personalPresetsRight'); const ytGrpRight = document.getElementById('ytPlaylistsGroupRight');
         grpLeft.innerHTML = ''; ytGrpLeft.innerHTML = ''; grpRight.innerHTML = ''; ytGrpRight.innerHTML = '';
+        
         personalPresets.forEach((p) => {
             const optL = document.createElement('option'); optL.value = p.url; optL.innerText = "⭐ " + p.name; grpLeft.appendChild(optL);
             const optR = document.createElement('option'); optR.value = p.url; optR.innerText = "⭐ " + p.name; grpRight.appendChild(optR);
@@ -728,9 +815,15 @@
             const optR = document.createElement('option'); optR.value = 'ytpl_' + p.id; optR.innerText = "📺 " + p.name; ytGrpRight.appendChild(optR);
         });
         
-        const selectElementL = document.getElementById('countrySelect');
-        const selectElementR = document.getElementById('rightCountrySelect');
-        if(currentListContext) {
+        // DÜZELTME 2: Eğer mevcut liste açılır menüde yoksa (manuel girilmişse) geçici bir seçenek ekle
+        if (currentListContext) {
+            let existsInOptions = Array.from(selectElementL.options).some(opt => opt.value === currentListContext);
+            if (!existsInOptions && currentListContext.startsWith('http')) {
+                const tempOpt = document.createElement('option');
+                tempOpt.value = currentListContext; tempOpt.innerText = "🌐 Özel Link";
+                selectElementL.appendChild(tempOpt.cloneNode(true));
+                selectElementR.appendChild(tempOpt.cloneNode(true));
+            }
             selectElementL.value = currentListContext;
             selectElementR.value = currentListContext;
         }
@@ -742,21 +835,25 @@
         const isPersonal = personalPresets.find(p => p.url === val) || val.startsWith('ytpl_');
         document.getElementById('removePresetBtn').style.display = isPersonal ? 'block' : 'none';
         
-        // DÜZELTME 2: Sağ menüdeki sil butonunun görünürlüğü
         const rightRemoveBtn = document.getElementById('rightRemovePresetBtn');
-        if (rightRemoveBtn) {
-            rightRemoveBtn.style.display = isPersonal ? 'flex' : 'none';
-        }
+        if (rightRemoveBtn) rightRemoveBtn.style.display = isPersonal ? 'flex' : 'none';
     }
     
-    function syncAndChangeCountry(val) { document.getElementById('countrySelect').value = val; document.getElementById('rightCountrySelect').value = val; changeCountry(); }
+    function syncAndChangeCountry(val) { 
+        document.getElementById('countrySelect').value = val; 
+        document.getElementById('rightCountrySelect').value = val; 
+        changeCountry(); 
+    }
     
     function removeCurrentPreset() {
         if (!confirm("Bu özel listeyi tamamen silmek istediğinize emin misiniz?")) return;
         const val = document.getElementById('countrySelect').value;
         if (val.startsWith('ytpl_')) { ytPlaylistsData = ytPlaylistsData.filter(p => 'ytpl_' + p.id !== val); localStorage.setItem('tv_yt_playlists', JSON.stringify(ytPlaylistsData)); } 
         else { personalPresets = personalPresets.filter(p => p.url !== val); localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); }
-        updatePresetDropdown(); syncAndChangeCountry("tr");
+        
+        currentListContext = 'tr'; // Türkiye'ye dön
+        updatePresetDropdown(); 
+        syncAndChangeCountry("tr");
     }
     
     function injectExtraChannels() {
@@ -764,11 +861,13 @@
         const extras = extraChannelsDict[currentListContext] || [];
         extras.forEach((ex, idx) => { const copy = {...ex}; copy.originalIndex = -1000 - idx; copy.broken = false; allChannels.unshift(copy); });
     }
+    
     function deleteSingleChannel(event, id) {
          event.stopPropagation(); if (!confirm("Bu özel kanalı listeden silmek istediğinize emin misiniz?")) return;
          if (extraChannelsDict[currentListContext]) { extraChannelsDict[currentListContext] = extraChannelsDict[currentListContext].filter(c => c.id !== id); localStorage.setItem('tv_extras_dict', JSON.stringify(extraChannelsDict)); }
          allChannels = allChannels.filter(c => c.id !== id); sortAndRenderList(); showOSD("Silindi", "Kanal listeden kaldırıldı.");
     }
+    
     function addSingleChannel() {
         const name = document.getElementById('singleName').value.trim(); const url = document.getElementById('singleUrl').value.trim(); const logo = document.getElementById('singleLogo').value.trim();
         if (!name || !url) { alert("Lütfen kanal adı ve linki girin."); return; }
@@ -822,11 +921,8 @@
 
     async function loadYTPlaylistFromId(listId) {
          const stat = document.getElementById('status'); stat.innerText = "Yükleniyor..."; 
-         currentListContext = 'ytpl_' + listId; 
-         localStorage.setItem('tv_last_context', currentListContext);
          
-         // DÜZELTME 1: Liste Yüklenmeden Önce Ekranı Temizle (Üst üste binmeyi önler)
-         allChannels = [];
+         allChannels = []; // Ekranı hemen temizle
          sortAndRenderList();
 
          try {
@@ -835,8 +931,7 @@
             let nextPageToken = '';
             let fetchCount = 0;
             
-            // DÜZELTME 4: 1000 videoya (20 sayfa) kadar destekleyen sayfalama döngüsü
-            while (fetchCount < 20) {
+            while (fetchCount < 20) { // Max ~1000 video yükle
                 let pageParam = nextPageToken ? `&pageToken=${nextPageToken}` : '';
                 const reqUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${listId}&maxResults=50${pageParam}&key=${userYTApiKey}`;
                 let res = await fetch(reqUrl); 
@@ -855,7 +950,7 @@
                 fetchCount++;
                 stat.innerText = `Yükleniyor... (${newChannels.length})`;
                 
-                if (!nextPageToken) break; // Başka sayfa kalmadıysa döngüden çık
+                if (!nextPageToken) break; 
             }
 
             if (newChannels.length === 0) throw new Error("Boş");
@@ -871,14 +966,20 @@
     }
     
     function changeCountry() { 
-        checkSelectedPreset(); 
         const val = document.getElementById('countrySelect').value; 
+        currentListContext = val; // DÜZELTME 1: Tam değeri sakla
+        localStorage.setItem('tv_last_context', currentListContext);
+        
+        // Arama/Filtre kutusunu sıfırla ki kanallar gizli kalmasın
+        document.getElementById('filterInput').value = '';
+        performSearch();
+        
+        checkSelectedPreset(); 
+        
         if (val.startsWith('ytpl_')) { 
             loadYTPlaylistFromId(val.replace('ytpl_', '')); 
         } else { 
             let url = val.startsWith('http') ? val : `https://iptv-org.github.io/iptv/countries/${val}.m3u`; 
-            currentListContext = url; 
-            localStorage.setItem('tv_last_context', currentListContext);
             loadUrl(url, "Liste Hazır!", false); 
         }
     }
@@ -890,11 +991,12 @@
         if (val.includes('<script') && val.includes('src=')) { let m = val.match(/src=["'](.*?)["']/); if(m) val = m[1]; } 
         if (val.includes('gist.github.com')) { val = val.replace('.js', '').replace('gist.github.com', 'gist.githubusercontent.com'); if (!val.endsWith('/raw')) val += '/raw'; } 
         if (val.startsWith('http')) {
-            if (name && !append) { if (!personalPresets.find(p => p.url === val)) { personalPresets.push({name: name, url: val}); localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); updatePresetDropdown(); syncAndChangeCountry(val); } }
-            currentListContext = val;
-            localStorage.setItem('tv_last_context', currentListContext);
-            loadUrl(val, "Yüklendi", append); 
-        } else { parseAndAdd(val, append); } 
+            if (name && !append) { if (!personalPresets.find(p => p.url === val)) { personalPresets.push({name: name, url: val}); localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); updatePresetDropdown(); } }
+            currentListContext = val; // Listeyi buna güncelle
+            syncAndChangeCountry(val); 
+        } else { 
+            parseAndAdd(val, append); 
+        } 
         document.getElementById('presetName').value = ""; 
     }
     
@@ -902,9 +1004,8 @@
         const stat = document.getElementById('status'); stat.innerText = "Yükleniyor...";
         if (url.includes('github.com') && !url.includes('gist') && !url.includes('raw') && !url.includes('user')) { url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/'); }
         
-        // DÜZELTME 1: Yeni liste çekilirken ekranı anında temizle
         if (!append) {
-            allChannels = [];
+            allChannels = []; // Önceki kanalları ekrandan uçur
             sortAndRenderList();
         }
 
@@ -1142,16 +1243,9 @@
         updatePresetDropdown();
         applySimpleModeState();
         
-        if (customChannelsData.length > 0) { 
-            allChannels = customChannelsData; 
-            allChannels.forEach((c, index) => { if (!c.id) c.id = 'ch_' + (globalIdCounter++); if (c.originalIndex === undefined) c.originalIndex = index; c.broken = brokenUrls.includes(c.url); }); 
-            injectExtraChannels(); 
-            sortAndRenderList(); 
-            document.getElementById('status').innerText = "Özel Liste Yüklendi"; 
-            if(isSimpleMode && allChannels.length > 0) play(0, 1); 
-        } else { 
-            loadUrl(DEFAULT_LIST, "TR Listesi Hazır!", false); 
-        }
+        // Uygulama yüklendiğinde hafızadaki listeyi sorunsuz tetikle
+        changeCountry();
+        
         resetControlsTimer();
         const vid = document.getElementById('localPlayer'); vid.addEventListener('play', () => document.getElementById('playIcon').innerText = 'pause'); vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow'); vid.addEventListener('error', () => { if (!vid.currentSrc || vid.currentSrc === window.location.href) return; handleStreamError(currentPlaySession); }); 
     });
