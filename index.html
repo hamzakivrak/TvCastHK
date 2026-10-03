@@ -2,7 +2,9 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#000000">
     <title>TV Cast - Smart Player OS</title>
@@ -177,6 +179,49 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) { .center-buttons { gap: 2px; padding: 8px 10px; } .ctrl-btn { width: 38px; height: 38px; } .ctrl-btn.small { width: 36px; height: 36px; } .ctrl-btn.main { width: 48px; height: 48px; } }
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: .01ms !important; } }
+
+        /* ===== v3: YATAY TAM EKRAN + KAYDIRMA + MODERN ÜST BAR ===== */
+        :root { --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px); --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px); }
+        #controlsOverlay.hide, #controlsOverlay.hide * { pointer-events: none !important; }
+        .top-bar { pointer-events: none; align-items: center; gap: 12px; padding: calc(14px + var(--sat)) calc(16px + var(--sar)) 46px calc(16px + var(--sal)); background: linear-gradient(to bottom, rgba(0,0,0,.85), rgba(0,0,0,.4) 60%, transparent); }
+        .top-bar > * { pointer-events: auto; }
+        .top-title { min-width: 0; flex: 1; }
+        #previewTitle { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .top-meta { display: flex; align-items: center; gap: 8px; }
+        .ch-counter { font-size: .72rem; color: rgba(255,255,255,.7); padding: 3px 9px; border-radius: 20px; background: rgba(255,255,255,.09); font-variant-numeric: tabular-nums; }
+        .ch-counter:empty { display: none; }
+        .top-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .top-btn { width: 42px; height: 42px; padding: 0; border-radius: 50%; border: 1px solid rgba(255,255,255,.14); background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .2s, transform .15s; }
+        .top-btn:hover { background: rgba(108,92,231,.55); }
+        .top-btn:active { transform: scale(.92); }
+        .top-btn i { font-size: 22px; }
+        .top-btn.connected { color: #2ecc71; border-color: rgba(46,204,113,.55); }
+        body.simple-mode .top-actions { display: none; }
+        .center-buttons { padding-left: 14px; padding-right: 14px; max-width: calc(100vw - 20px); }
+        #leftSidebar { padding-left: var(--sal); } #rightSidebar { padding-right: var(--sar); }
+        .osd-title { top: calc(14% + var(--sat)); background: rgba(12,12,18,.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-radius: 18px; }
+
+        .swipe-card { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 22; min-width: 210px; max-width: 80%; text-align: center; padding: 14px 24px; border-radius: 20px; background: rgba(12,12,18,.8); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 12px 40px rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: opacity .2s; }
+        .swipe-card.show { transition: none; }
+        .swipe-card.ready { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(108,92,231,.5), 0 12px 40px rgba(0,0,0,.6); }
+        .swipe-card i { display: block; font-size: 34px; line-height: 1; color: var(--accent2); }
+        .swipe-name { font-weight: 600; font-size: 1.05rem; margin: 4px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .swipe-sub { font-size: .75rem; color: rgba(255,255,255,.6); }
+        .swipe-card.ready .swipe-sub { color: var(--accent2); }
+
+        @media (hover: none) { .tap-zone.left-zone, .tap-zone.right-zone { background: none; } .zone-hint { display: none; } }
+
+        /* Telefon yatay: kompakt, kenar-boşluksuz oynatıcı */
+        @media (orientation: landscape) and (max-height: 520px) {
+            .top-bar { padding: calc(8px + var(--sat)) calc(14px + var(--sar)) 26px calc(14px + var(--sal)); }
+            #previewTitle { font-size: 1.05rem; }
+            .top-btn { width: 38px; height: 38px; }
+            .center-buttons { bottom: calc(10px + var(--sab)); padding: 6px 12px; }
+            .ctrl-btn.main { width: 46px; height: 46px; }
+            #leftSidebar, #rightSidebar { width: min(380px, 48vw); }
+            .osd-title { top: 8%; font-size: .95rem; padding: 8px 20px; }
+            #liveSubtitleOverlay { bottom: 22%; }
+        }
     </style>
 
     <script>
@@ -232,7 +277,7 @@
 </head>
 <body>
 
-<div id="playerWrapper" onclick="showControls()" ontouchstart="showControls()" onmousemove="showControls()">
+<div id="playerWrapper">
     <video id="localPlayer" playsinline crossorigin="anonymous"></video>
     
     <div id="ytContainer">
@@ -249,16 +294,22 @@
     </div>
 
     <div id="bufSpinner"></div>
+    <div id="swipeCard" class="swipe-card"><i class="material-icons-round" id="swipeArrow">keyboard_arrow_up</i><div class="swipe-name" id="swipeName"></div><div class="swipe-sub" id="swipeSub"></div></div>
     <div id="osdTitle" class="osd-title">TV Cast OS</div>
 
     <div id="controlsOverlay" onclick="event.stopPropagation()">
         <div class="top-bar">
             <div class="top-title">
                 <span id="previewTitle">Kanal Seçin</span>
-                <span id="pStatus" class="status-badge">Hazır</span>
+                <div class="top-meta"><span id="pStatus" class="status-badge">Hazır</span><span id="chCounter" class="ch-counter"></span></div>
+            </div>
+            <div class="top-actions">
+                <button class="top-btn" id="topCastBtn" onclick="triggerCustomCast()" title="TV'ye yayınla"><i class="material-icons-round" id="topCastIcon">cast</i></button>
+                <button class="top-btn" onclick="openRightSidebar()" title="Kanal listesi"><i class="material-icons-round">format_list_bulleted</i></button>
+                <button class="top-btn" onclick="openLeftSidebar()" title="Menü"><i class="material-icons-round">menu</i></button>
             </div>
         </div>
-        
+
         <div class="center-buttons">
             <button class="ctrl-btn small" id="ccBtn" onclick="toggleSubtitles()" title="Altyazıyı Aç/Kapat"><i class="material-icons-round">closed_caption</i></button>
             
@@ -285,7 +336,7 @@
             </button>
             
             <button class="ctrl-btn small" id="muteBtn" onclick="toggleMute()" title="Sessiz (M)"><i class="material-icons-round" id="muteIcon">volume_up</i></button>
-            <button class="ctrl-btn small" onclick="toggleFullscreen()" title="Tam ekran (F)"><i class="material-icons-round">fullscreen</i></button>
+            <button class="ctrl-btn small" onclick="toggleFullscreen()" title="Tam ekran (F)"><i class="material-icons-round" id="fsIcon">fullscreen</i></button>
             <button class="ctrl-btn small fav-btn" id="mainFavBtn" onclick="toggleMainFavorite()" title="Favoriye Ekle"><i class="material-icons-round" id="mainFavIcon">star_border</i></button>
         </div>
     </div>
@@ -744,22 +795,7 @@
     let longPressTimer;
     
     const pw = document.getElementById('playerWrapper');
-    pw.addEventListener('touchstart', e => { touchStartY = e.changedTouches[0].screenY; }, {passive: true});
-    pw.addEventListener('touchend', e => {
-        const diff = touchStartY - e.changedTouches[0].screenY;
-        if (diff > 60) nextCh();      
-        else if (diff < -60) prevCh(); 
-    }, {passive: true});
-
-    pw.addEventListener('mousedown', e => { isDragging = true; touchStartY = e.clientY; });
-    pw.addEventListener('mouseup', e => {
-        if (!isDragging) return;
-        isDragging = false;
-        const diff = touchStartY - e.clientY;
-        if (diff > 60) nextCh();
-        else if (diff < -60) prevCh();
-    });
-    pw.addEventListener('mouseleave', () => { isDragging = false; });
+    /* kaydırma motoru: aşağıdaki v3 bölümünde */
 
     let btnPressHandled = false;
     let isHoldingBtn = false;
@@ -1117,7 +1153,7 @@
         const currentId = (curIdx !== -1 && allChannels[curIdx]) ? allChannels[curIdx].id : null;
         allChannels.sort((a, b) => { if (a.broken !== b.broken) return a.broken ? 1 : -1; if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1; return a.originalIndex - b.originalIndex; });
         if (currentId) curIdx = allChannels.findIndex(c => c.id === currentId);
-        document.getElementById('listCountTitle').innerText = `${allChannels.length} Kanal`;
+        document.getElementById('listCountTitle').innerText = `${allChannels.length} Kanal`; updateChannelMeta();
         const container = document.getElementById('channelList'); container.innerHTML = ""; let brokenHeaderAdded = false; setTimeout(performSearch, 0);
         
         allChannels.slice(0, 2000).forEach((ch, i) => {
@@ -1253,7 +1289,7 @@
         const activeItem = document.getElementById(`c-${curIdx}`); 
         if (activeItem) { activeItem.classList.remove('broken'); activeItem.classList.add('active'); }
         
-        document.getElementById('previewTitle').innerText = ch.name; updateMainFavBtn(); 
+        document.getElementById('previewTitle').innerText = ch.name; updateMainFavBtn(); updateChannelMeta(); acquireWakeLock(); 
         const ytId = extractYTId(ch.url);
 
         if (remotePlayer && remotePlayer.isConnected) {
@@ -1351,6 +1387,92 @@
     function toggleFullscreen() { if (document.fullscreenElement) document.exitFullscreen(); else (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || (() => {})).call(document.documentElement); }
     function nextCh() { moveToNextWorking(1); }
     function prevCh() { moveToNextWorking(-1); }
+
+
+    /* ===== v3 ===== */
+    function showOSD(name, subtitle = "") { const osd = document.getElementById('osdTitle'); osd.innerHTML = `${esc(name)} <div style="font-size:0.8rem; color:#aaa; margin-top:5px; font-weight:400;">${esc(subtitle)}</div>`; osd.classList.add('show'); clearTimeout(osdTimer); osdTimer = setTimeout(() => osd.classList.remove('show'), 3000); }
+
+    function updateChannelMeta() {
+        const el = document.getElementById('chCounter'); if (!el) return;
+        el.textContent = (curIdx >= 0 && allChannels[curIdx]) ? `${curIdx + 1} / ${allChannels.length}` : (allChannels.length ? `${allChannels.length} kanal` : '');
+    }
+
+    /* Ekranı açık tut */
+    var v3Wake = null;
+    async function acquireWakeLock() { try { if (!v3Wake && 'wakeLock' in navigator) { v3Wake = await navigator.wakeLock.request('screen'); v3Wake.addEventListener('release', () => { v3Wake = null; }); } } catch (e) {} }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && curIdx !== -1) acquireWakeLock(); });
+
+    /* Tam ekran */
+    var v3AutoFsPending = false, v3AutoFsEntered = false;
+    const fsActive = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const fsSupported = () => !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+    function enterFullscreen() { const el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen; if (!f) return Promise.reject(); try { const r = f.call(el, { navigationUI: 'hide' }); return r && r.then ? r : Promise.resolve(); } catch (e) { return Promise.reject(e); } }
+    function exitFs() { const f = document.exitFullscreen || document.webkitExitFullscreen; if (f) try { const r = f.call(document); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
+    function toggleFullscreen() { if (fsActive()) exitFs(); else if (!fsSupported()) showOSD('Bu tarayıcı tam ekranı desteklemiyor', 'Ana ekrana ekleyerek açın'); else enterFullscreen().catch(() => showOSD('Tam ekran açılamadı')); }
+    ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { document.getElementById('fsIcon').textContent = fsActive() ? 'fullscreen_exit' : 'fullscreen'; if (!fsActive()) v3AutoFsEntered = false; }));
+    const phoneLandscape = () => matchMedia('(orientation: landscape) and (max-height: 520px)').matches && matchMedia('(pointer: coarse)').matches;
+    function onOrient() {
+        if (phoneLandscape()) {
+            if (fsActive() || !fsSupported()) return;
+            enterFullscreen().then(() => { v3AutoFsEntered = true; v3AutoFsPending = false; }).catch(() => { v3AutoFsPending = true; showOSD('Tam ekran için ekrana dokunun'); });
+        } else { v3AutoFsPending = false; if (v3AutoFsEntered && fsActive()) exitFs(); v3AutoFsEntered = false; }
+    }
+    function pendingFs() { if (!v3AutoFsPending) return; v3AutoFsPending = false; if (phoneLandscape() && !fsActive()) enterFullscreen().then(() => { v3AutoFsEntered = true; }).catch(() => {}); }
+    document.addEventListener('touchend', pendingFs, { passive: true, capture: true });
+    document.addEventListener('click', pendingFs, true);
+    const v3mq = matchMedia('(orientation: landscape)'); if (v3mq.addEventListener) v3mq.addEventListener('change', onOrient); else v3mq.addListener(onOrient);
+
+    /* Basit mod sınıfı + üst bardaki TV ikonunu menüdeki ile eşitle */
+    const _asm = applySimpleModeState; applySimpleModeState = function () { _asm.apply(this, arguments); document.body.classList.toggle('simple-mode', isSimpleMode); };
+    new MutationObserver(() => { const t = document.getElementById('customCastIcon').textContent.trim(); document.getElementById('topCastIcon').textContent = t; document.getElementById('topCastBtn').classList.toggle('connected', t === 'cast_connected'); }).observe(document.getElementById('customCastIcon'), { childList: true, characterData: true, subtree: true });
+
+    /* Hareket motoru: yukarı/aşağı = kanal, yana = menü/liste, çift dokunuş = tam ekran */
+    (function () {
+        const TH = 70, card = document.getElementById('swipeCard'), arrow = document.getElementById('swipeArrow'), nameEl = document.getElementById('swipeName'), subEl = document.getElementById('swipeSub');
+        let st = null, md = null, lastTouch = 0, lastTap = { t: 0, x: 0, y: 0 }, tapTimer = null, wheelT = 0;
+        const L = document.getElementById('leftSidebar'), R = document.getElementById('rightSidebar'), ctrl = document.getElementById('controlsOverlay');
+        const drawerOpen = () => L.classList.contains('open') || R.classList.contains('open');
+        const ignore = t => !!(t.closest && t.closest('button, .ctrl-btn, input, select, textarea, .center-buttons'));
+        const sideZone = t => !isSimpleMode && !!(t.closest && t.closest('.tap-zone.left-zone, .tap-zone.right-zone'));
+        function peek(dir) { if (!allChannels.length) return -1; let n = curIdx, a = 0; do { n += dir; if (n >= allChannels.length) n = 0; if (n < 0) n = allChannels.length - 1; a++; } while (allChannels[n].broken && a < allChannels.length); return a < allChannels.length ? n : -1; }
+        function hideCard() { card.className = 'swipe-card'; card.style.opacity = ''; card.style.transform = ''; }
+        function showCard(dy) {
+            const dir = dy < 0 ? 1 : -1, idx = peek(dir); if (idx < 0) { hideCard(); return; }
+            const prog = Math.min(1, Math.abs(dy) / TH);
+            nameEl.textContent = allChannels[idx].name; arrow.textContent = dir === 1 ? 'keyboard_arrow_up' : 'keyboard_arrow_down';
+            subEl.textContent = prog >= 1 ? 'Bırakınca geç' : (dir === 1 ? 'Sonraki kanal' : 'Önceki kanal');
+            card.className = 'swipe-card show' + (prog >= 1 ? ' ready' : ''); card.style.opacity = .35 + .65 * prog; card.style.transform = `translate(-50%, calc(-50% + ${dy * .4}px))`;
+        }
+        function hSwipe(dx, wasOpen) {
+            if (wasOpen) { if ((L.classList.contains('open') && dx < 0) || (R.classList.contains('open') && dx > 0)) closeAllDrawers(); return; }
+            if (isSimpleMode) return; if (dx > 0) openLeftSidebar(); else openRightSidebar();
+        }
+        function tap(s) {
+            if (drawerOpen() || s.side) return; const now = Date.now();
+            if (now - lastTap.t < 300 && Math.abs(s.x - lastTap.x) < 45 && Math.abs(s.y - lastTap.y) < 45) { clearTimeout(tapTimer); lastTap.t = 0; toggleFullscreen(); showControls(); return; }
+            lastTap = { t: now, x: s.x, y: s.y };
+            if (ctrl.classList.contains('hide')) showControls(); else tapTimer = setTimeout(() => ctrl.classList.add('hide'), 280);
+        }
+        pw.addEventListener('touchstart', e => { if (e.touches.length !== 1 || ignore(e.target)) { st = null; hideCard(); return; } const t = e.touches[0]; st = { x: t.clientX, y: t.clientY, t: Date.now(), lock: null, dx: 0, dy: 0, side: sideZone(e.target), open: drawerOpen() }; }, { passive: true });
+        pw.addEventListener('touchmove', e => { if (!st) return; const t = e.touches[0]; st.dx = t.clientX - st.x; st.dy = t.clientY - st.y; if (!st.lock && (Math.abs(st.dx) > 12 || Math.abs(st.dy) > 12)) st.lock = Math.abs(st.dy) > Math.abs(st.dx) * 1.2 ? 'v' : 'h'; if (st.lock === 'v' && !st.open) showCard(st.dy); }, { passive: true });
+        pw.addEventListener('touchend', () => {
+            lastTouch = Date.now(); if (!st) return; const s = st; st = null; const dur = Date.now() - s.t;
+            if (s.lock === 'v') { hideCard(); if (s.open || drawerOpen()) return; if (Math.abs(s.dy) >= TH || (dur < 280 && Math.abs(s.dy) >= 40)) { if (s.dy < 0) nextCh(); else prevCh(); } return; }
+            if (s.lock === 'h') { if (Math.abs(s.dx) >= 80 && Math.abs(s.dx) > Math.abs(s.dy) * 1.5) hSwipe(s.dx, s.open); return; }
+            if (dur < 350) tap(s);
+        }, { passive: true });
+        pw.addEventListener('touchcancel', () => { st = null; hideCard(); }, { passive: true });
+        /* Masaüstü */
+        const mouseOk = () => Date.now() - lastTouch > 700;
+        pw.addEventListener('mousedown', e => { if (e.button !== 0 || !mouseOk() || ignore(e.target)) return; md = { x: e.clientX, y: e.clientY }; });
+        pw.addEventListener('mouseup', e => { if (!md) return; const dx = e.clientX - md.x, dy = e.clientY - md.y; md = null; if (drawerOpen()) return; if (Math.abs(dy) >= TH && Math.abs(dy) > Math.abs(dx) * 1.5) { if (dy < 0) nextCh(); else prevCh(); } });
+        pw.addEventListener('mouseleave', () => { md = null; });
+        pw.addEventListener('mousemove', () => { if (mouseOk()) showControls(); });
+        pw.addEventListener('click', e => { if (mouseOk() && !sideZone(e.target)) showControls(); });
+        pw.addEventListener('dblclick', e => { if (mouseOk() && !ignore(e.target) && !sideZone(e.target)) toggleFullscreen(); });
+        pw.addEventListener('wheel', e => { if (drawerOpen() || Math.abs(e.deltaY) < 20 || Date.now() - wheelT < 700) return; wheelT = Date.now(); if (e.deltaY > 0) nextCh(); else prevCh(); }, { passive: true });
+    })();
+    window.addEventListener('DOMContentLoaded', () => { document.body.classList.toggle('simple-mode', isSimpleMode); updateChannelMeta(); setTimeout(onOrient, 800); });
 
     window.addEventListener('DOMContentLoaded', () => {
         initDataSaverUI();
