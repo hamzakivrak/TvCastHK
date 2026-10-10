@@ -337,6 +337,7 @@
             
             <button class="ctrl-btn small" id="muteBtn" onclick="toggleMute()" title="Sessiz (M)"><i class="material-icons-round" id="muteIcon">volume_up</i></button>
             <button class="ctrl-btn small" onclick="toggleFullscreen()" title="Tam ekran (F)"><i class="material-icons-round" id="fsIcon">fullscreen</i></button>
+            <button class="ctrl-btn small" id="rotBtn" onclick="toggleRotation()" title="Yatay / Dikey çevir"><i class="material-icons-round" id="rotIcon">screen_rotation</i></button>
             <button class="ctrl-btn small fav-btn" id="mainFavBtn" onclick="toggleMainFavorite()" title="Favoriye Ekle"><i class="material-icons-round" id="mainFavIcon">star_border</i></button>
         </div>
     </div>
@@ -1421,6 +1422,21 @@
     document.addEventListener('touchend', pendingFs, { passive: true, capture: true });
     document.addEventListener('click', pendingFs, true);
     const v3mq = matchMedia('(orientation: landscape)'); if (v3mq.addEventListener) v3mq.addEventListener('change', onOrient); else v3mq.addListener(onOrient);
+
+    /* Elle yatay/dikey çevirme: Android'de sistem döndürme kilitli olsa bile tam ekranda çalışır */
+    function toggleRotation() {
+        const so = screen.orientation;
+        if (!so || !so.lock) { showOSD('Bu tarayıcı döndürmeyi desteklemiyor', 'Android Chrome kullanın'); return; }
+        const go = () => {
+            const target = so.type.startsWith('landscape') ? 'portrait' : 'landscape';
+            v3AutoFsEntered = false; v3AutoFsPending = false;
+            so.lock(target).then(() => showOSD(target === 'landscape' ? 'Yatay Mod' : 'Dikey Mod')).catch(() => showOSD('Döndürülemedi', 'Tarayıcı bu cihazda izin vermedi'));
+        };
+        if (fsActive()) go();
+        else if (!fsSupported()) showOSD('Bu tarayıcı tam ekranı desteklemiyor');
+        else enterFullscreen().then(go).catch(() => showOSD('Tam ekran açılamadı'));
+    }
+    ['fullscreenchange', 'webkitfullscreenchange'].forEach(ev => document.addEventListener(ev, () => { if (!fsActive()) { try { screen.orientation.unlock(); } catch (e) {} } }));
 
     /* Basit mod sınıfı + üst bardaki TV ikonunu menüdeki ile eşitle */
     const _asm = applySimpleModeState; applySimpleModeState = function () { _asm.apply(this, arguments); document.body.classList.toggle('simple-mode', isSimpleMode); };
