@@ -233,6 +233,9 @@
         .quar-bar .btn { flex: 1 1 45%; height: 34px; font-size: .72rem; }
         #smartResults .yt-search-item { cursor: pointer; }
         #smartResults .yt-search-item span { flex: 1; min-width: 0; }
+        /* ===== v5 ===== */
+        .ch-counter.warn { color: #ffb142; background: rgba(255,177,66,.16); }
+        #qualityBadge { max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
 
     <script>
@@ -312,7 +315,7 @@
         <div class="top-bar">
             <div class="top-title">
                 <span id="previewTitle">Kanal Seçin</span>
-                <div class="top-meta"><span id="pStatus" class="status-badge">Hazır</span><span id="chCounter" class="ch-counter"></span></div>
+                <div class="top-meta"><span id="pStatus" class="status-badge">Hazır</span><span id="chCounter" class="ch-counter"></span><span id="qualityBadge" class="ch-counter"></span></div>
             </div>
             <div class="top-actions">
                 <button class="top-btn" id="topCastBtn" onclick="triggerCustomCast()" title="TV'ye yayınla"><i class="material-icons-round" id="topCastIcon">cast</i></button>
@@ -435,9 +438,19 @@
                         </p>
                     </div>
                     
-                    <div class="sub-module" style="display: flex; align-items: center; justify-content: space-between;">
-                        <span style="font-size: 0.85rem; font-weight: 500;">Veri Tasarrufu (Mobil İçin)</span>
-                        <button class="btn" id="dataSaverToggleBtn" onclick="toggleDataSaver()" style="width: auto; padding: 0 15px; background: #3d3e46; border-color: transparent; height:36px; margin:0;">Kapalı</button>
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:#2ecc71;">Veri Tasarrufu (Mobil İçin)</span>
+                        <select id="dataModeSelect" onchange="setDataMode(this.value)">
+                            <option value="off">Kapalı (en yüksek kalite)</option>
+                            <option value="low">Hep en düşük kalite</option>
+                            <option value="auto">Sadece mobil veride ve arka planda düşük kalite</option>
+                        </select>
+                        <div id="dataNetLine" style="font-size:0.7rem; color:#aaa; margin-bottom:8px; line-height:1.3;"></div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                            <span id="dataUsageLine" style="font-size:0.72rem; color:#aaa; line-height:1.3;">Bu oturum: 0 KB</span>
+                            <button class="btn" style="flex:none; width:auto; padding:0 12px; height:30px; margin:0;" onclick="resetDataUsage()">Sıfırla</button>
+                        </div>
+                        <p style="font-size:0.65rem; color:#888; margin:8px 0 0; line-height:1.3;">Sayaç yalnızca bu uygulamanın indirdiği yayın verisini sayar; operatör sayacından biraz farklı olabilir. Radyo için değerler tahminidir.</p>
                     </div>
 
                     <div class="sub-module">
@@ -1413,11 +1426,11 @@
                 };
                 
                 if (isDataSaver) {
-                    hlsConfig.autoLevelCapping = 0; 
+                    hlsConfig.autoLevelCapping = 0; hlsConfig.startLevel = 0; 
                     hlsConfig.capLevelToPlayerSize = true;
                 }
                 
-                hls = new Hls(hlsConfig); 
+                hls = new Hls(hlsConfig); attachHlsStats(hls); 
                 hls.on(Hls.Events.ERROR, function (event, data) { if (data.fatal) { switch (data.type) { case Hls.ErrorTypes.NETWORK_ERROR: case Hls.ErrorTypes.MEDIA_ERROR: handleStreamError(sessionToken); break; default: hls.destroy(); handleStreamError(sessionToken); break; } } }); 
                 hls.loadSource(url); 
                 hls.attachMedia(video); 
@@ -1862,6 +1875,136 @@ async function runQuarTest(list) {
     stat.style.color = '#2ecc71'; stat.innerText = sig.aborted ? `Test durduruldu · ${ok} kanal kurtarıldı` : `Karantina testi bitti · ${ok}/${list.length} kanal tekrar çalışıyor`;
     showOSD(sig.aborted ? 'Test Durduruldu' : 'Karantina Testi Bitti', ok + ' kanal karantinadan çıktı');
 }
+
+</script>
+
+<script>
+/* ===== v5: Veri modu • Kalite/veri rozeti • Medya bildirimi ===== */
+let dataMode = localStorage.getItem('tv_data_mode') || (isDataSaver ? 'low' : 'off');
+let sessionBytes = 0, streamBytes = 0, measuredBps = 0, curLevelInfo = null, heavyStream = false, heavyWarnedUrl = '';
+let todayBytes = 0, todayKey = '', lastSave = 0, lastMS = '', lastMSTime = 0;
+
+function netConn() { return navigator.connection || navigator.mozConnection || navigator.webkitConnection || null; }
+function netKnown() { const c = netConn(); return !!(c && c.type); }
+function onMobile() { const c = netConn(); return !!(c && c.type === 'cellular'); }
+function fmtBytes(b) { if (b < 1048576) return Math.max(0, Math.round(b / 1024)) + ' KB'; if (b < 1073741824) return (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB'; return (b / 1073741824).toFixed(2) + ' GB'; }
+function fmtRate(bps) { return bps >= 1e6 ? (bps / 1e6).toFixed(1) + ' Mbps' : Math.round(bps / 1000) + ' kbps'; }
+
+/* Veri modu */
+function recomputeDataSaver() { isDataSaver = dataMode === 'low' || (dataMode === 'auto' && onMobile() && document.visibilityState === 'hidden'); }
+function applyLevelCap() {
+    recomputeDataSaver();
+    if (!hls) return;
+    try { hls.autoLevelCapping = isDataSaver ? 0 : -1; } catch (e) {}
+}
+function setDataMode(m) {
+    dataMode = m; try { localStorage.setItem('tv_data_mode', m); } catch (e) {}
+    applyLevelCap(); updateNetLine();
+    const names = { off: 'Kapalı', low: 'Hep en düşük kalite', auto: 'Mobil veride ve arka planda düşük kalite' };
+    showOSD('Veri Modu', names[m] || '');
+    if (m === 'auto' && !netKnown()) showOSD('Veri Modu', 'Bağlantı türü algılanamıyor; Android Chrome gerekir');
+}
+function toggleDataSaver() { setDataMode(dataMode === 'off' ? 'low' : 'off'); }
+function initDataSaverUI() { const sel = document.getElementById('dataModeSelect'); if (sel) sel.value = dataMode; recomputeDataSaver(); updateNetLine(); }
+function updateNetLine() {
+    const el = document.getElementById('dataNetLine'); if (!el) return; const c = netConn();
+    if (c && c.type) { const t = c.type === 'cellular' ? 'Mobil veri' : (c.type === 'wifi' ? 'Wi‑Fi' : c.type); el.textContent = 'Şu anki bağlantı: ' + t; }
+    else el.textContent = 'Bağlantı türü bu tarayıcıda algılanamıyor (Android Chrome gerekir). "Hep en düşük kalite" her yerde çalışır.';
+}
+
+/* Veri sayacı */
+function loadToday() { try { const o = JSON.parse(localStorage.getItem('tv_data_today') || 'null'); todayKey = new Date().toDateString(); if (o && o.k === todayKey) todayBytes = o.b || 0; } catch (e) {} }
+function addBytes(n) {
+    sessionBytes += n; streamBytes += n;
+    const k = new Date().toDateString(); if (k !== todayKey) { todayKey = k; todayBytes = 0; } todayBytes += n;
+    const now = Date.now(); if (now - lastSave > 8000) { lastSave = now; try { localStorage.setItem('tv_data_today', JSON.stringify({ k: todayKey, b: todayBytes })); } catch (e) {} }
+}
+function resetDataUsage() { sessionBytes = 0; streamBytes = 0; todayBytes = 0; try { localStorage.setItem('tv_data_today', JSON.stringify({ k: todayKey, b: 0 })); } catch (e) {} updateBadge(); showOSD('Veri sayacı sıfırlandı'); }
+function resetStreamStats() { streamBytes = 0; measuredBps = 0; curLevelInfo = null; heavyStream = false; lastMS = ''; }
+
+function warnHeavyOnce() {
+    const ch = allChannels[curIdx]; if (!ch || heavyWarnedUrl === ch.url) return; heavyWarnedUrl = ch.url;
+    if (onMobile()) showOSD('Yüksek veri kullanımı', 'Bu yayının düşük kalitesi yok · yaklaşık ' + fmtRate(measuredBps));
+}
+function attachHlsStats(h) {
+    resetStreamStats();
+    h.on(Hls.Events.FRAG_LOADED, (e, d) => {
+        try {
+            const st = d.frag && d.frag.stats; const b = (st && (st.total || st.loaded)) || (d.payload && d.payload.byteLength) || 0;
+            if (b) addBytes(b);
+            if (d.frag && d.frag.type === 'main') {
+                const dur = d.frag.duration;
+                if (b && dur > 0) { const bps = b * 8 / dur; measuredBps = measuredBps ? measuredBps * 0.7 + bps * 0.3 : bps; }
+                curLevelInfo = (h.levels && h.levels[d.frag.level]) || curLevelInfo;
+                heavyStream = d.frag.level <= 0 && measuredBps > 1000000;
+                if (heavyStream) warnHeavyOnce();
+            }
+        } catch (x) {}
+        updateBadge();
+    });
+    h.on(Hls.Events.LEVEL_SWITCHED, (e, d) => { curLevelInfo = (h.levels && h.levels[d.level]) || null; updateBadge(); });
+}
+
+/* Rozet */
+function currentMode() {
+    if (typeof remotePlayer !== 'undefined' && remotePlayer && remotePlayer.isConnected && !isDualPlayActive) return 'cast';
+    if (document.getElementById('ytContainer').style.display === 'block') return 'yt';
+    const ch = allChannels[curIdx]; if (!ch) return 'none';
+    if (ch.url.includes('#audio')) return 'audio';
+    if (hls) return 'hls';
+    return 'native';
+}
+function audioEstBps(url) { return url.includes('#audio-aac') ? 64000 : (url.includes('#audio-ogg') ? 96000 : 128000); }
+function badgeInfo() {
+    const m = currentMode(); const ch = allChannels[curIdx];
+    if (m === 'cast') return { text: 'TV’ye yayın · telefonda veri yok', heavy: false };
+    if (m === 'yt') return { text: 'YouTube · veri ölçülemiyor', heavy: false };
+    if (m === 'audio') return { text: 'Radyo · ~' + fmtRate(audioEstBps(ch.url)) + ' · ~' + fmtBytes(streamBytes), heavy: false };
+    if (m === 'native') return { text: 'Veri ölçülemiyor', heavy: false };
+    if (m === 'hls') {
+        const parts = [];
+        if (curLevelInfo) parts.push(curLevelInfo.height ? curLevelInfo.height + 'p' : (curLevelInfo.bitrate ? fmtRate(curLevelInfo.bitrate) : ''));
+        if (measuredBps) parts.push(fmtRate(measuredBps));
+        parts.push(fmtBytes(streamBytes));
+        return { text: parts.filter(Boolean).join(' · '), heavy: heavyStream };
+    }
+    return { text: '', heavy: false };
+}
+function updateMediaSession(text, heavy) {
+    if (!('mediaSession' in navigator) || curIdx === -1) return; const ch = allChannels[curIdx]; if (!ch) return;
+    const now = Date.now(); if (lastMS.startsWith(ch.name + '|') && now - lastMSTime < 8000) return;
+    const artist = (heavy ? '⚠ Yüksek veri · ' : '') + (text || 'TV Cast'); const key = ch.name + '|' + artist; if (key === lastMS) return;
+    lastMS = key; lastMSTime = now;
+    try { navigator.mediaSession.metadata = new MediaMetadata({ title: ch.name, artist, album: 'TV Cast', artwork: (ch.logo && /^https?:/.test(ch.logo)) ? [{ src: ch.logo }] : [] }); } catch (e) {}
+}
+function updateBadge() {
+    const el = document.getElementById('qualityBadge'); if (!el) return;
+    const info = curIdx === -1 ? { text: '', heavy: false } : badgeInfo();
+    el.textContent = info.text ? (info.heavy ? '⚠ ' : '') + info.text : ''; el.classList.toggle('warn', !!info.heavy);
+    el.title = info.heavy ? 'Bu yayının düşük kalite seçeneği yok, veri tüketimi yüksek' : '';
+    const u = document.getElementById('dataUsageLine'); if (u) u.textContent = 'Bu oturum: ' + fmtBytes(sessionBytes) + ' · Bugün: ' + fmtBytes(todayBytes) + ' (Wi‑Fi dahil)';
+    if (curIdx !== -1) updateMediaSession(info.text, info.heavy);
+}
+function initMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    const set = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) {} };
+    const vid = () => document.getElementById('localPlayer');
+    set('previoustrack', () => prevCh()); set('nexttrack', () => nextCh());
+    set('play', () => { if (vid().paused) togglePlayPause(); }); set('pause', () => { if (!vid().paused) togglePlayPause(); });
+}
+
+/* play() çağrılarında akış sayaçlarını sıfırla */
+(function () { const _p = play; play = async function () { resetStreamStats(); return _p.apply(this, arguments); }; })();
+
+document.addEventListener('visibilitychange', () => { applyLevelCap(); updateBadge(); });
+try { const c = netConn(); if (c && c.addEventListener) c.addEventListener('change', () => { applyLevelCap(); updateNetLine(); }); } catch (e) {}
+window.addEventListener('DOMContentLoaded', () => {
+    loadToday(); initMediaSession(); updateNetLine(); recomputeDataSaver(); updateBadge();
+    setInterval(updateBadge, 2000);
+    setInterval(() => {
+        if (currentMode() === 'audio') { const v = document.getElementById('localPlayer'); if (v && !v.paused) addBytes(audioEstBps(allChannels[curIdx].url) * 5 / 8); }
+    }, 5000);
+});
 
 </script>
 
