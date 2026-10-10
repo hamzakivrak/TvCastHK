@@ -236,6 +236,23 @@
         /* ===== v5 ===== */
         .ch-counter.warn { color: #ffb142; background: rgba(255,177,66,.16); }
         #qualityBadge { max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* ===== v6: TV modu ===== */
+        .tv-hint, .tv-start { display: none; }
+        .tv-mode .tv-hint { display: flex; position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); gap: 22px; padding: 12px 26px; border-radius: 30px; background: rgba(12,12,18,.85); border: 1px solid rgba(255,255,255,.14); font-size: 1.05rem; white-space: nowrap; pointer-events: none; }
+        .tv-hint b { color: var(--accent2); font-weight: 600; margin-right: 6px; }
+        .tv-start.show { display: flex; position: absolute; inset: 0; z-index: 50; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(circle at 50% 40%, rgba(108,92,231,.4), #05050a 72%); text-align: center; padding: 20px; }
+        .tv-start h1 { margin: 0; font-size: 3rem; font-weight: 600; }
+        .tv-start .ok { font-size: 1.6rem; color: var(--accent2); }
+        .tv-start .keys { font-size: 1.1rem; color: #bbb; line-height: 1.9; }
+        .tv-mode .center-buttons, .tv-mode #topCastBtn, .tv-mode #rotBtn, .tv-mode #castBox { display: none !important; }
+        .tv-mode #previewTitle { font-size: 2rem; }
+        .tv-mode .status-badge, .tv-mode .ch-counter { font-size: 1rem; }
+        .tv-mode .channel-item { font-size: 1.15rem; min-height: 68px; }
+        .tv-mode .c-icon { width: 72px; height: 44px; }
+        .tv-mode #leftSidebar, .tv-mode #rightSidebar { width: min(560px, 46vw); }
+        .tv-mode .channel-item:focus { outline: 3px solid var(--accent2); outline-offset: -3px; background: rgba(0,206,201,.14); }
+        .tv-mode .osd-title { font-size: 1.6rem; padding: 16px 38px; }
     </style>
 
     <script>
@@ -310,6 +327,11 @@
     <div id="bufSpinner"></div>
     <div id="swipeCard" class="swipe-card"><i class="material-icons-round" id="swipeArrow">keyboard_arrow_up</i><div class="swipe-name" id="swipeName"></div><div class="swipe-sub" id="swipeSub"></div></div>
     <div id="osdTitle" class="osd-title">TV Cast OS</div>
+    <div id="tvStart" class="tv-start" onclick="startTv()">
+        <h1>TV Cast</h1>
+        <div class="ok">Başlamak için kumandada OK tuşuna basın</div>
+        <div class="keys">▲ ▼ &nbsp;Kanal değiştir &nbsp;&nbsp;·&nbsp;&nbsp; ◀ ▶ &nbsp;Ses<br>OK &nbsp;Kanal listesi &nbsp;&nbsp;·&nbsp;&nbsp; Geri &nbsp;Kapat &nbsp;&nbsp;·&nbsp;&nbsp; Listede ◀ &nbsp;Ayarlar</div>
+    </div>
 
     <div id="controlsOverlay" onclick="event.stopPropagation()">
         <div class="top-bar">
@@ -323,6 +345,8 @@
                 <button class="top-btn" onclick="openLeftSidebar()" title="Menü"><i class="material-icons-round">menu</i></button>
             </div>
         </div>
+
+        <div id="tvHint" class="tv-hint"><span><b>▲▼</b>Kanal</span><span><b>◀▶</b>Ses</span><span><b>OK</b>Liste</span></div>
 
         <div class="center-buttons">
             <button class="ctrl-btn small" id="ccBtn" onclick="toggleSubtitles()" title="Altyazıyı Aç/Kapat"><i class="material-icons-round">closed_caption</i></button>
@@ -503,6 +527,16 @@
                         <input type="text" id="singleUrl" placeholder="Yayın Linki (.m3u8 veya YouTube Linki)">
                         <input type="text" id="singleLogo" placeholder="Logo Linki (İsteğe bağlı)">
                         <button class="btn" style="width:100%; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Aktif Listeye Ekle</button>
+                    </div>
+
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:#a29bfe;">TV Modu (Android TV / Mi Stick)</span>
+                        <select id="tvModeSelect" onchange="setTvModePref(this.value)">
+                            <option value="auto">Otomatik algıla</option>
+                            <option value="1">Her zaman açık</option>
+                            <option value="0">Kapalı</option>
+                        </select>
+                        <p style="font-size:0.65rem; color:#888; margin:0; line-height:1.4;">Kumanda: ▲/▼ kanal (▲ sonraki), ◀/▶ ses, OK kanal listesi, Geri kapatır, kanal listesindeyken ◀ ayarları açar. Adresin sonuna ?tv=1 eklerseniz de açılır.</p>
                     </div>
 
                     <div class="sub-module">
@@ -2004,6 +2038,109 @@ window.addEventListener('DOMContentLoaded', () => {
     setInterval(() => {
         if (currentMode() === 'audio') { const v = document.getElementById('localPlayer'); if (v && !v.paused) addBytes(audioEstBps(allChannels[curIdx].url) * 5 / 8); }
     }, 5000);
+});
+
+</script>
+
+<script>
+/* ===== v6: TV modu (Android TV / Mi Stick kumandası) ===== */
+const TV_KEY = 'tv_tv_mode';
+let tvMode = false, tvStarted = false;
+
+function detectTv() {
+    try { const q = new URLSearchParams(location.search).get('tv'); if (q === '1' || q === '0') localStorage.setItem(TV_KEY, q); } catch (e) {}
+    let pref = null; try { pref = localStorage.getItem(TV_KEY); } catch (e) {}
+    if (pref === '1') return true; if (pref === '0') return false;
+    const ua = navigator.userAgent || '';
+    const tvUa = /Android.*(TV|AFT|BRAVIA|MiTV|MIBOX|Mi Box|Chromecast|AOSP on)|SmartTV|SMART-TV|Tizen|Web0S|HbbTV|CrKey/i.test(ua);
+    const androidNoTouchBig = /Android/i.test(ua) && (navigator.maxTouchPoints || 0) === 0 && Math.max(screen.width, screen.height) >= 1280;
+    return tvUa || androidNoTouchBig;
+}
+function applyTvMode(on) { tvMode = !!on; document.body.classList.toggle('tv-mode', tvMode); }
+function setTvModePref(v) {
+    try { if (v === 'auto') localStorage.removeItem(TV_KEY); else localStorage.setItem(TV_KEY, v); } catch (e) {}
+    applyTvMode(detectTv()); showOSD('TV Modu', v === 'auto' ? 'Otomatik: ' + (tvMode ? 'açık' : 'kapalı') : (v === '1' ? 'Açık' : 'Kapalı'));
+}
+
+function tvVolume(d) {
+    const ytc = document.getElementById('ytContainer'); let vol;
+    if (ytc.style.display === 'block' && typeof ytPlayer !== 'undefined' && ytPlayer && ytPlayer.getVolume) {
+        vol = Math.round(Math.max(0, Math.min(100, ytPlayer.getVolume() + d * 100))); try { ytPlayer.unMute(); ytPlayer.setVolume(vol); } catch (e) {}
+    } else {
+        const v = document.getElementById('localPlayer'); v.muted = false;
+        vol = Math.round(Math.max(0, Math.min(1, v.volume + d)) * 100); v.volume = vol / 100;
+        try { localStorage.setItem('tv_volume', String(vol)); } catch (e) {}
+    }
+    document.getElementById('muteIcon').innerText = vol === 0 ? 'volume_off' : 'volume_up';
+    const n = Math.round(vol / 10); showOSD('Ses ' + vol + '%', '█'.repeat(n) + '░'.repeat(10 - n));
+}
+
+function tvListItems() { return Array.from(document.querySelectorAll('#channelList .channel-item')).filter(i => i.style.display !== 'none'); }
+function tvFocusItem(it) { if (!it) return; it.setAttribute('tabindex', '-1'); try { it.focus({ preventScroll: true }); } catch (e) { it.focus(); } try { it.scrollIntoView({ block: 'center' }); } catch (e) {} }
+function tvListMove(dir) {
+    const items = tvListItems(); if (!items.length) return;
+    const cur = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.channel-item') : null;
+    let idx = cur ? items.indexOf(cur) : items.findIndex(i => i.classList.contains('active'));
+    if (idx < 0) idx = 0; else idx = Math.max(0, Math.min(items.length - 1, idx + dir));
+    tvFocusItem(items[idx]);
+}
+function tvOpenList() {
+    openRightSidebar();
+    try { history.pushState({ tvd: 1 }, ''); } catch (e) {}
+    setTimeout(() => { tvFocusItem(document.getElementById('c-' + curIdx) || tvListItems()[0]); }, 250);
+}
+
+function startTv() {
+    if (tvStarted) return; tvStarted = true;
+    document.getElementById('tvStart').classList.remove('show');
+    try { const sv = parseInt(localStorage.getItem('tv_volume')); if (!isNaN(sv)) document.getElementById('localPlayer').volume = Math.max(0, Math.min(1, sv / 100)); } catch (e) {}
+    try { enterFullscreen().catch(() => {}); } catch (e) {}
+    let tries = 0;
+    const go = () => {
+        if (curIdx !== -1) return;
+        if (allChannels.length) { const li = allChannels.findIndex(c => c.url === localStorage.getItem('tv_last_channel')); play(li >= 0 ? li : 0, 1); }
+        else if (tries++ < 40) setTimeout(go, 500);
+    };
+    go(); showControls();
+}
+
+window.addEventListener('keydown', function (e) {
+    if (!tvMode) return;
+    const t = e.target; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    const k = e.key; const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+    const startEl = document.getElementById('tvStart');
+    if (startEl.classList.contains('show')) { stop(); startTv(); return; }
+    const leftOpen = document.getElementById('leftSidebar').classList.contains('open'), rightOpen = document.getElementById('rightSidebar').classList.contains('open');
+    const onBtn = !!(t && t.closest && t.closest('button, .btn, .btn-icon'));
+    if (k === 'Escape' || k === 'BrowserBack' || k === 'GoBack' || k === 'Backspace') { if (leftOpen || rightOpen) { stop(); closeAllDrawers(); } return; }
+    if (k === 'ContextMenu' || k === 'Menu') { stop(); if (leftOpen) closeAllDrawers(); else openLeftSidebar(); return; }
+    if (leftOpen) return;
+    if (k === 'MediaPlayPause' || k === 'MediaPlay' || k === 'MediaPause') { stop(); togglePlayPause(); showControls(); return; }
+    if (k === 'MediaTrackNext' || k === 'ChannelUp') { stop(); if (!e.repeat) nextCh(); return; }
+    if (k === 'MediaTrackPrevious' || k === 'ChannelDown') { stop(); if (!e.repeat) prevCh(); return; }
+    if (k === 'ArrowLeft') { stop(); if (rightOpen) { closeAllDrawers(); openLeftSidebar(); } else tvVolume(-0.1); return; }
+    if (k === 'ArrowRight') { stop(); if (!rightOpen) tvVolume(0.1); return; }
+    if (k === 'ArrowUp' || k === 'ArrowDown') {
+        if (rightOpen && onBtn) return;
+        stop();
+        if (rightOpen) { tvListMove(k === 'ArrowUp' ? -1 : 1); return; }
+        if (!e.repeat) { if (k === 'ArrowUp') nextCh(); else prevCh(); showControls(); }
+        return;
+    }
+    if (k === 'Enter' || k === ' ' || k === 'Select') {
+        if (onBtn) return;
+        stop();
+        if (rightOpen) { const it = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.channel-item') : null; if (it) it.click(); return; }
+        tvOpenList(); return;
+    }
+}, true);
+
+window.addEventListener('popstate', () => { if (tvMode) closeAllDrawers(); });
+window.addEventListener('DOMContentLoaded', () => {
+    let pref = null; try { pref = localStorage.getItem(TV_KEY); } catch (e) {}
+    const sel = document.getElementById('tvModeSelect'); if (sel) sel.value = pref === '1' ? '1' : (pref === '0' ? '0' : 'auto');
+    applyTvMode(detectTv());
+    if (tvMode) document.getElementById('tvStart').classList.add('show');
 });
 
 </script>
