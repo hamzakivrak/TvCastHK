@@ -222,6 +222,17 @@
             .osd-title { top: 8%; font-size: .95rem; padding: 8px 20px; }
             #liveSubtitleOverlay { bottom: 22%; }
         }
+
+        /* ===== v4 ===== */
+        .q-chk { width: 20px !important; height: 20px; margin: 0 !important; padding: 0 !important; flex-shrink: 0; accent-color: var(--primary); cursor: pointer; background: transparent; }
+        .q-test { color: #aaa; font-size: 20px; padding: 4px; border-radius: 50%; cursor: pointer; }
+        .q-test:hover { color: var(--accent2); background: rgba(255,255,255,.08); }
+        .channel-item.broken { opacity: 1; }
+        .channel-item.broken .c-icon, .channel-item.broken .name, .channel-item.broken .fav-icon { opacity: .45; }
+        .quar-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
+        .quar-bar .btn { flex: 1 1 45%; height: 34px; font-size: .72rem; }
+        #smartResults .yt-search-item { cursor: pointer; }
+        #smartResults .yt-search-item span { flex: 1; min-width: 0; }
     </style>
 
     <script>
@@ -481,6 +492,32 @@
                         <button class="btn" style="width:100%; background:var(--fav); color:#000; border-color:var(--fav); font-weight:bold;" onclick="addSingleChannel()">Aktif Listeye Ekle</button>
                     </div>
 
+                    <div class="sub-module">
+                        <span class="sub-module-title" style="color:#00cec9;">Akıllı Kanal Ara (TV / Radyo)</span>
+                        <div style="display:flex; gap:5px; margin-bottom:8px;">
+                            <input type="text" id="smartQuery" placeholder="Örn: türkiye, fransa haber, radyo, spor" style="margin:0;" onkeydown="if(event.key === 'Enter') smartSearch()">
+                            <button class="btn" style="flex:0.4; background:#00cec9; border-color:#00cec9; color:#000; margin:0;" onclick="smartSearch()"><i class="material-icons-round">search</i></button>
+                        </div>
+                        <div style="display:flex; gap:18px; font-size:0.8rem; margin-bottom:8px; align-items:center;">
+                            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="q-chk" id="srcTv" checked> TV</label>
+                            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" class="q-chk" id="srcRadio" checked> Radyo</label>
+                        </div>
+                        <div id="smartStatus" style="font-size:0.72rem; color:#aaa; text-align:center; margin-bottom:8px; line-height:1.3;">Ülke, kategori veya kelime yazın. Bulunan yayınları yeni ya da mevcut bir listeye ekleyebilirsiniz.</div>
+                        <div id="smartResults" class="yt-search-results" style="max-height:260px;"></div>
+                        <div id="smartActions" style="display:none;">
+                            <div id="smartCount" style="font-size:0.75rem; color:#aaa; text-align:center; margin-bottom:8px;"></div>
+                            <div class="btn-group" style="margin-bottom:10px;">
+                                <button class="btn" onclick="smartSelectAll(true)">Tümünü Seç</button>
+                                <button class="btn" onclick="smartSelectAll(false)">Hiçbiri</button>
+                                <button class="btn" id="smartTestBtn" onclick="smartTest()">Test Et</button>
+                            </div>
+                            <select id="smartTarget" onchange="smartTargetChanged()"></select>
+                            <input type="text" id="smartNewName" placeholder="Yeni liste adı (boşsa aranan kelime)">
+                            <button class="btn" style="width:100%; background:#2ecc71; border-color:#2ecc71; font-weight:bold;" onclick="smartAddToList()">Seçilenleri Listeye Ekle</button>
+                            <p style="font-size:0.65rem; color:#888; text-align:center; margin-top:8px; line-height:1.3;">Test, tarayıcıda kanalın açılıp açılmadığına bakar; bazı çalışan yayınlar tarayıcı kısıtı yüzünden elenmiş olabilir.</p>
+                        </div>
+                    </div>
+
                     <div class="sub-module" style="border-bottom:none; padding-bottom:0;">
                         <span class="sub-module-title">Manuel M3U Linki Yükle</span>
                         <textarea id="inputData" placeholder="Link veya içerik yapıştır..."></textarea>
@@ -642,7 +679,7 @@
             presets: personalPresets,
             extras: extraChannelsDict,
             ytPlaylists: ytPlaylistsData,
-            lastContext: currentListContext
+            lastContext: currentListContext, localLists: collectLocalLists()
         };
 
         try {
@@ -685,12 +722,13 @@
         set('tv_yt_playlists', ytAll); set('tv_presets', presAll); set('tv_favorites', favs);
         set('tv_broken', pick('broken', []) || brokenUrls); set('tv_custom', pick('custom', []) || customChannelsData);
         set('tv_extras_dict', Object.assign({}, extraChannelsDict, pick('extras', []) || {}));
+        if (d.localLists && typeof d.localLists === 'object') { Object.keys(d.localLists).forEach(k => { try { localStorage.setItem('tvl_' + k, JSON.stringify(d.localLists[k])); } catch (e) {} }); }
         if (d.apiKey) localStorage.setItem('tv_yt_api_key', d.apiKey);
         if (d.lastContext) localStorage.setItem('tv_last_context', d.lastContext);
         return { yt: ytAll.length, pres: presAll.length, fav: favs.length };
     }
     function exportBackup() {
-        const payload = { favorites: favUrls, broken: brokenUrls, custom: customChannelsData, presets: personalPresets, extras: extraChannelsDict, ytPlaylists: ytPlaylistsData, lastContext: currentListContext, apiKey: userYTApiKey };
+        const payload = { favorites: favUrls, broken: brokenUrls, custom: customChannelsData, presets: personalPresets, extras: extraChannelsDict, ytPlaylists: ytPlaylistsData, lastContext: currentListContext, localLists: collectLocalLists(), apiKey: userYTApiKey };
         const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' })); a.download = 'tvcast-yedek.json'; a.click();
         showOSD("Yedek indirildi", "API anahtarı da dosyada, paylaşmayın");
     }
@@ -958,7 +996,7 @@
         if (!confirm("Bu özel listeyi tamamen silmek istediğinize emin misiniz?")) return;
         const val = document.getElementById('countrySelect').value;
         if (val.startsWith('ytpl_')) { ytPlaylistsData = ytPlaylistsData.filter(p => 'ytpl_' + p.id !== val); localStorage.setItem('tv_yt_playlists', JSON.stringify(ytPlaylistsData)); } 
-        else { personalPresets = personalPresets.filter(p => p.url !== val); localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); }
+        else { if (val.startsWith('local_')) { try { localStorage.removeItem('tvl_' + val); } catch (e) {} } personalPresets = personalPresets.filter(p => p.url !== val); localStorage.setItem('tv_presets', JSON.stringify(personalPresets)); }
         
         currentListContext = 'tr'; // Türkiye'ye dön
         updatePresetDropdown(); 
@@ -973,6 +1011,7 @@
     
     function deleteSingleChannel(event, id) {
          event.stopPropagation(); if (!confirm("Bu özel kanalı listeden silmek istediğinize emin misiniz?")) return;
+         if (!id.startsWith('ch_ex_') && String(currentListContext).startsWith('local_')) { const dc = allChannels.find(x => x.id === id); if (dc) saveLocalList(currentListContext, getLocalList(currentListContext).filter(x => x.url !== dc.url)); }
          if (extraChannelsDict[currentListContext]) { extraChannelsDict[currentListContext] = extraChannelsDict[currentListContext].filter(c => c.id !== id); localStorage.setItem('tv_extras_dict', JSON.stringify(extraChannelsDict)); }
          allChannels = allChannels.filter(c => c.id !== id); sortAndRenderList(); showOSD("Silindi", "Kanal listeden kaldırıldı.");
     }
@@ -1085,6 +1124,7 @@
         
         checkSelectedPreset(); 
         
+        if (val.startsWith('local_')) { loadLocalList(val); return; }
         if (val.startsWith('ytpl_')) { 
             loadYTPlaylistFromId(val.replace('ytpl_', '')); 
         } else { 
@@ -1143,7 +1183,7 @@
             else if (line.startsWith("http") && info.name) { newChannels.push({ id: 'ch_' + (globalIdCounter++), originalIndex: startIndex++, name: info.name, url: line, logo: info.logo, broken: brokenUrls.includes(line), isFavorite: favUrls.includes(line) }); info = {}; }
         }
         if (append) { allChannels = allChannels.concat(newChannels); } else { allChannels = newChannels; }
-        injectExtraChannels(); const toSave = allChannels.filter(c => !c.id.startsWith('ch_ex_')); localStorage.setItem('tv_custom', JSON.stringify(toSave)); sortAndRenderList();
+        injectExtraChannels(); const toSave = allChannels.filter(c => !c.id.startsWith('ch_ex_')); localStorage.setItem('tv_custom', JSON.stringify(toSave)); persistLocalIfNeeded(); sortAndRenderList();
         if (allChannels.length && !append) { curIdx = -1; document.getElementById('previewTitle').innerText = "Kanal Seçin"; }
         if (isSimpleMode && allChannels.length > 0 && curIdx === -1) { const li = allChannels.findIndex(c => c.url === localStorage.getItem('tv_last_channel')); play(li >= 0 ? li : 0, 1); }
     }
@@ -1158,8 +1198,8 @@
         const container = document.getElementById('channelList'); container.innerHTML = ""; let brokenHeaderAdded = false; setTimeout(performSearch, 0);
         
         allChannels.slice(0, 2000).forEach((ch, i) => {
-            if (ch.broken && !brokenHeaderAdded) { const sep = document.createElement('div'); sep.className = 'broken-divider'; sep.innerHTML = '<span>Yayın Alınamayan Kanallar</span>'; container.appendChild(sep); brokenHeaderAdded = true; }
-            const item = document.createElement('div'); item.className = `channel-item ${i===curIdx ? 'active' : ''} ${ch.broken ? 'broken' : ''}`; item.id = `c-${i}`; item.setAttribute('draggable', 'true'); item.onclick = (ev) => { if (ev.target.closest('.fav-icon,.del-icon,.drag-handle')) return; play(i, 0); closeAllDrawers(); };
+            if (ch.broken && !brokenHeaderAdded) { container.appendChild(buildQuarBar()); brokenHeaderAdded = true; }
+            const item = document.createElement('div'); item.className = `channel-item ${i===curIdx ? 'active' : ''} ${ch.broken ? 'broken' : ''}`; item.id = `c-${i}`; item.setAttribute('draggable', 'true'); item.onclick = (ev) => { if (ev.target.closest('.fav-icon,.del-icon,.drag-handle,.q-chk,.q-test')) return; play(i, 0); closeAllDrawers(); };
             
             item.addEventListener('dragstart', (e) => handleDragStart(e, i));
             item.addEventListener('dragover', handleDragOver);
@@ -1167,9 +1207,9 @@
             item.addEventListener('dragend', handleDragEnd);
             
             let img = `<div class="c-icon"><i class="material-icons-round" style="font-size:16px;">tv</i></div>`; if (ch.logo) { img = `<div class="c-icon"><img src="${esc(ch.logo)}" onerror="this.onerror=null; this.parentNode.innerHTML='<i class=\'material-icons-round\' style=\'font-size:16px;\'>tv</i>'"></div>`; }
-            let delBtn = ''; if (ch.id.startsWith('ch_ex_')) { delBtn = `<i class="material-icons-round del-icon" onclick="deleteSingleChannel(event, '${ch.id}')" title="Kanalı Sil">close</i>`; }
+            let delBtn = ''; if (ch.id.startsWith('ch_ex_') || String(currentListContext).startsWith('local_')) { delBtn = `<i class="material-icons-round del-icon" onclick="deleteSingleChannel(event, '${ch.id}')" title="Kanalı Sil">close</i>`; }
             
-            item.innerHTML = `<i class="material-icons-round drag-handle" title="Sürükle">drag_indicator</i>${img} <span class="name">${esc(ch.name)}</span> <i class="material-icons-round fav-icon ${ch.isFavorite ? 'active' : ''}" onclick="toggleFavorite(event, '${ch.id}')">star</i> ${delBtn}`;
+            const qChk = ch.broken ? `<input type="checkbox" class="q-chk" data-id="${ch.id}" ${quarSel.has(ch.id) ? 'checked' : ''} onclick="quarToggle(event, '${ch.id}')">` : ''; const qTest = ch.broken ? `<i class="material-icons-round q-test" title="Yeniden test et" onclick="retestOne(event, '${ch.id}')">refresh</i>` : ''; item.innerHTML = `${qChk}<i class="material-icons-round drag-handle" title="Sürükle">drag_indicator</i>${img} <span class="name">${esc(ch.name)}</span>${qTest} <i class="material-icons-round fav-icon ${ch.isFavorite ? 'active' : ''}" onclick="toggleFavorite(event, '${ch.id}')">star</i> ${delBtn}`;
             container.appendChild(item);
         });
     }
@@ -1181,7 +1221,7 @@
         if (draggedItemIndex !== null && draggedItemIndex !== targetIndex) {
             const movedItem = allChannels.splice(draggedItemIndex, 1)[0]; allChannels.splice(targetIndex, 0, movedItem);
             allChannels.forEach((c, idx) => { c.originalIndex = idx; });
-            const toSave = allChannels.filter(c => !c.id.startsWith('ch_ex_')); localStorage.setItem('tv_custom', JSON.stringify(toSave));
+            const toSave = allChannels.filter(c => !c.id.startsWith('ch_ex_')); localStorage.setItem('tv_custom', JSON.stringify(toSave)); persistLocalIfNeeded();
             sortAndRenderList(); showOSD("Sıralama Güncellendi");
         }
         return false;
@@ -1205,12 +1245,21 @@
         isScanning = false; btn.innerText = "Hepsini Tara"; btn.style.color = "var(--fav)"; btn.style.borderColor = "var(--fav)";
         if (!signal.aborted) { stat.innerText = "Tarama bitti."; showOSD("Tarama Tamamlandı", `${brokenCount} bozuk kanal bulundu.`); }
     }
-    function testStreamBackground(url) {
+    function testStreamBackground(url, ms = 4000) {
         return new Promise((resolve) => {
             if (extractYTId(url)) { resolve(true); return; }
-            const timeout = setTimeout(() => resolve(false), 4000); 
-            if (Hls.isSupported() && url.includes('.m3u')) { const tempHls = new Hls({ debug: false, autoStartLoad: false }); tempHls.on(Hls.Events.ERROR, function (event, data) { if (data.fatal) { clearTimeout(timeout); tempHls.destroy(); resolve(false); } }); tempHls.on(Hls.Events.MANIFEST_PARSED, function() { clearTimeout(timeout); tempHls.destroy(); resolve(true); }); tempHls.loadSource(url); tempHls.startLoad();
-            } else { const v = document.createElement('video'); v.onloadedmetadata = () => { clearTimeout(timeout); resolve(true); v.removeAttribute('src'); }; v.onerror = () => { clearTimeout(timeout); resolve(false); v.removeAttribute('src'); }; v.src = url; }
+            let done = false, tempHls = null, v = null, timer = null;
+            const finish = (ok) => { if (done) return; done = true; clearTimeout(timer); try { if (tempHls) tempHls.destroy(); } catch (e) {} try { if (v) { v.onloadedmetadata = null; v.onerror = null; v.removeAttribute('src'); v.load(); } } catch (e) {} resolve(ok); };
+            timer = setTimeout(() => finish(false), ms);
+            if (Hls.isSupported() && url.includes('.m3u') && !url.includes('#audio')) {
+                tempHls = new Hls({ debug: false, autoStartLoad: false });
+                tempHls.on(Hls.Events.ERROR, function (event, data) { if (data.fatal) finish(false); });
+                tempHls.on(Hls.Events.MANIFEST_PARSED, function () { finish(true); });
+                tempHls.loadSource(url); tempHls.startLoad();
+            } else {
+                v = document.createElement('video'); v.preload = 'metadata';
+                v.onloadedmetadata = () => finish(true); v.onerror = () => finish(false); v.src = url.split('#')[0];
+            }
         });
     }
     function resetQuarantine() { if (confirm("Karantinayı temizlemek istiyor musunuz?")) { brokenUrls = []; localStorage.removeItem('tv_broken'); allChannels.forEach(c => c.broken = false); sortAndRenderList(); showOSD("Karantina Temizlendi"); } }
@@ -1299,6 +1348,7 @@
             
             let castMediaUrl = ch.url; 
             let mimeType = /\.mp4(\?|$)/i.test(ch.url) ? 'video/mp4' : 'application/x-mpegurl';
+            if (ch.url.includes('#audio')) { castMediaUrl = ch.url.split('#')[0]; mimeType = ch.url.includes('#audio-aac') ? 'audio/aac' : (ch.url.includes('#audio-ogg') ? 'audio/ogg' : 'audio/mpeg'); }
             
             if (ytId) {
                 if (CUSTOM_RECEIVER_APP_ID) { sendYtToReceiver(ytId, ch, mySession); resetControlsTimer(); return; }
@@ -1352,6 +1402,8 @@
                 setTimeout(() => { try { if (sessionToken === currentPlaySession) { const st = ytPlayer.getPlayerState(); if (st !== 1 && st !== 3) { ytPlayer.mute(); ytPlayer.playVideo(); document.getElementById('muteIcon').innerText = 'volume_off'; showOSD("Ses kapalı başlatıldı", "Açmak için ses düğmesine dokunun"); } } } catch(e) {} }, 3500); } else { document.getElementById('pStatus').innerText = "YT Hazırlanıyor..."; setTimeout(() => playLocally(url, sessionToken), 1000); }
         } else {
             ytContainer.style.display = 'none'; if (isYtApiReady && ytPlayer && typeof ytPlayer.pauseVideo === 'function') ytPlayer.pauseVideo(); video.style.display = 'block';
+            if (url.includes('#audio')) { playAudioDirect(video, url, sessionToken); return; }
+            video.setAttribute('crossorigin', 'anonymous');
             if (Hls.isSupported()) { 
                 const hlsConfig = { 
                     manifestLoadingTimeOut: 10000, 
@@ -1502,6 +1554,315 @@
         const vid = document.getElementById('localPlayer'); const sp = document.getElementById('bufSpinner'); ['waiting','loadstart'].forEach(ev => vid.addEventListener(ev, () => sp.style.display = 'block')); ['playing','canplay','error','pause'].forEach(ev => vid.addEventListener(ev, () => sp.style.display = 'none'));
         vid.addEventListener('play', () => document.getElementById('playIcon').innerText = 'pause'); vid.addEventListener('pause', () => document.getElementById('playIcon').innerText = 'play_arrow'); vid.addEventListener('error', () => { if (!vid.currentSrc || vid.currentSrc === window.location.href) return; handleStreamError(currentPlaySession); }); 
     });
+</script>
+
+<script>
+/* ===== v4: Akıllı arama • Yerel listeler • Karantina yeniden test ===== */
+const SMART_SYN = { radyo:['radio'], radyolar:['radio'], haber:['news'], haberler:['news'], spor:['sport'], cocuk:['kids','children'], cocuklar:['kids','children'], muzik:['music'], film:['movie'], filmler:['movie'], sinema:['movie'], belgesel:['documentary'], dini:['religious'], eglence:['entertainment'], yemek:['cooking'], hava:['weather'], alisveris:['shop'], dizi:['series'], genel:['general'], ulusal:['general'], komedi:['comedy'], egitim:['education'], seyahat:['travel'], bilim:['science'], aile:['family'], klasik:['classic'], animasyon:['animation'], kultur:['culture'] };
+const CC_ALIAS = { us:'abd amerika usa', uk:'ingiltere birlesik krallik britanya england', tr:'turkiye turkey' };
+const IPTV_INDEX_URL = 'https://iptv-org.github.io/iptv/index.m3u';
+const RADIO_HOSTS = ['https://de1.api.radio-browser.info', 'https://at1.api.radio-browser.info', 'https://nl1.api.radio-browser.info', 'https://fi1.api.radio-browser.info'];
+const RADIO_WORDS = ['radyo', 'radio', 'radyolar', 'radios'];
+let iptvIndexCache = null, COUNTRY_MAP = null, DN_TR = null, DN_EN = null;
+const cnameCache = {};
+let smartResults = [], smartSel = new Set(), isSmartTesting = false, smartAbort = null;
+let quarSel = new Set(), isQuarTesting = false, quarAbort = null;
+
+function normTxt(s) { return String(s || '').toLocaleLowerCase('tr').replace(/ı/g, 'i').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss').replace(/\s+/g, ' ').trim(); }
+
+function buildCountryMap() {
+    if (COUNTRY_MAP) return COUNTRY_MAP;
+    COUNTRY_MAP = {};
+    const add = (n, c, force) => { if (n && (force || !COUNTRY_MAP[normTxt(n)])) COUNTRY_MAP[normTxt(n)] = c; };
+    try {
+        const tr = new Intl.DisplayNames(['tr'], { type: 'region', fallback: 'none' });
+        const en = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
+        for (let a = 65; a <= 90; a++) for (let b = 65; b <= 90; b++) {
+            const code = String.fromCharCode(a, b); let t, e; if (['DD','FX','SU','YU','CS','AN','BU','NT','TP','ZR','VD','YD','EU','UN','EZ','QO','ZZ','AC','CP','DG','EA','IC','TA'].includes(code)) continue;
+            try { t = tr.of(code); e = en.of(code); } catch (x) { continue; }
+            if (!t && !e) continue;
+            const cc = code === 'GB' ? 'uk' : code.toLowerCase();
+            add(t, cc); add(e, cc);
+        }
+    } catch (e) {}
+    Object.keys(CC_ALIAS).forEach(cc => CC_ALIAS[cc].split(' ').forEach(w => add(w, cc, true)));
+    add('birlesik arap emirlikleri', 'ae', true); add('cek cumhuriyeti', 'cz', true); add('kibris', 'cy', true); add('hollanda', 'nl', true);
+    return COUNTRY_MAP;
+}
+
+function cnamesOf(cc) {
+    if (!cc) return '';
+    if (cnameCache[cc] !== undefined) return cnameCache[cc];
+    let out = '';
+    try {
+        if (!DN_TR) { DN_TR = new Intl.DisplayNames(['tr'], { type: 'region', fallback: 'none' }); DN_EN = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' }); }
+        const k = cc === 'uk' ? 'GB' : cc.toUpperCase();
+        out = normTxt([DN_TR.of(k), DN_EN.of(k), CC_ALIAS[cc] || ''].filter(Boolean).join(' '));
+    } catch (e) { out = normTxt(CC_ALIAS[cc] || ''); }
+    cnameCache[cc] = out; return out;
+}
+
+function parseSmartQuery(q) {
+    const toks = normTxt(q).split(' ').filter(Boolean); const map = buildCountryMap(); let country = null;
+    for (let n = Math.min(3, toks.length); n >= 1 && !country; n--) {
+        for (let i = 0; i + n <= toks.length; i++) {
+            const ph = toks.slice(i, i + n).join(' ');
+            if (map[ph]) { country = map[ph]; toks.splice(i, n); break; }
+        }
+    }
+    return { country, words: toks, radioWord: toks.some(t => RADIO_WORDS.includes(t)) };
+}
+
+function parseIptvText(text, forcedCc) {
+    const out = []; const lines = text.split('\n'); let info = null;
+    for (const raw of lines) {
+        const line = raw.trim(); if (!line) continue;
+        if (line.startsWith('#EXTINF')) {
+            const comma = line.lastIndexOf(','); const id = (line.match(/tvg-id="([^"]*)"/) || [])[1] || '';
+            info = { name: comma !== -1 ? line.substring(comma + 1).trim() : 'Kanal', logo: (line.match(/tvg-logo="([^"]*)"/) || [])[1] || '', group: (line.match(/group-title="([^"]*)"/) || [])[1] || '', cc: forcedCc || (id.includes('.') ? id.split('.').pop().split('@')[0].toLowerCase() : '') };
+        } else if (line.startsWith('http') && info) {
+            info.url = line; info.kind = 'tv'; info.hay = normTxt(info.name + ' ' + info.group + ' ' + cnamesOf(info.cc));
+            out.push(info); info = null;
+        }
+    }
+    return out;
+}
+
+function tvMatches(ch, words, country) {
+    if (country && ch.cc !== country) return false;
+    if (!words.length) return true;
+    return words.every(w => ch.hay.includes(w) || (SMART_SYN[w] || []).some(s => ch.hay.includes(s)));
+}
+
+async function fetchIptv(url, big) {
+    const tries = [url, MY_CLOUD_PROXY + encodeURIComponent(url)]; let last;
+    for (const u of tries) {
+        try { const r = await fetchTO(u, big ? 45000 : 15000); if (!r.ok) throw new Error('HTTP ' + r.status); const tx = await r.text(); if (!tx.includes('#EXTINF')) throw new Error('Geçersiz içerik'); return tx; }
+        catch (e) { last = e; }
+    }
+    throw last;
+}
+
+async function searchTv(pq) {
+    let list = null;
+    if (pq.country) { try { list = parseIptvText(await fetchIptv(`https://iptv-org.github.io/iptv/countries/${pq.country}.m3u`, false), pq.country); } catch (e) { list = null; } }
+    if (!list) {
+        if (!iptvIndexCache) {
+            document.getElementById('smartStatus').innerText = 'TV listesi indiriliyor (ilk seferde biraz sürebilir)...';
+            iptvIndexCache = parseIptvText(await fetchIptv(IPTV_INDEX_URL, true), '');
+        }
+        list = iptvIndexCache;
+    }
+    const seen = new Set(); const out = [];
+    for (const ch of list) { if (seen.has(ch.url)) continue; if (!tvMatches(ch, pq.words, pq.country)) continue; seen.add(ch.url); out.push(ch); }
+    return out;
+}
+
+async function searchRadio(pq) {
+    const nameWords = pq.words.filter(w => !RADIO_WORDS.includes(w)); let cc = pq.country; let note = '';
+    if (!cc && !nameWords.length) { cc = 'tr'; note = 'Ülke yazılmadığı için Türkiye radyoları listelendi (ülke adı yazarak değiştirin)'; }
+    const p = new URLSearchParams({ hidebroken: 'true', limit: '300', order: 'clickcount', reverse: 'true' });
+    if (cc) p.set('countrycode', cc === 'uk' ? 'GB' : cc.toUpperCase());
+    if (nameWords.length) p.set('name', nameWords.join(' '));
+    let data = null, last;
+    for (const h of RADIO_HOSTS) {
+        try { const r = await fetchTO(`${h}/json/stations/search?${p.toString()}`, 9000); if (!r.ok) throw new Error('HTTP ' + r.status); data = await r.json(); break; } catch (e) { last = e; }
+    }
+    if (!data) throw last || new Error('Radyo sunucusu yanıt vermedi');
+    const secure = location.protocol === 'https:'; const seen = new Set(); const list = []; let dropped = 0;
+    data.forEach(s => {
+        let u = (s.url_resolved || s.url || '').trim(); if (!/^https?:\/\//.test(u)) return;
+        if (secure && !u.startsWith('https://')) { dropped++; return; }
+        u = u.split('#')[0]; if (seen.has(u)) return; seen.add(u);
+        const codec = (s.codec || '').toLowerCase(); let url = u;
+        if (!s.hls) url += codec.includes('aac') ? '#audio-aac' : (codec.includes('ogg') ? '#audio-ogg' : '#audio-mp3');
+        const tags = s.tags ? ' · ' + s.tags.split(',').slice(0, 2).join(', ') : '';
+        list.push({ name: (s.name || 'Radyo').trim(), url, logo: /^https?:/.test(s.favicon || '') ? s.favicon : '', group: 'Radyo' + tags, cc: (s.countrycode || '').toLowerCase(), kind: 'radio' });
+    });
+    return { list, note, dropped };
+}
+
+async function smartSearch() {
+    const q = document.getElementById('smartQuery').value.trim(); if (!q) return;
+    const wantTv = document.getElementById('srcTv').checked, wantRadio = document.getElementById('srcRadio').checked;
+    if (!wantTv && !wantRadio) { alert('En az bir kaynak seçin (TV veya Radyo).'); return; }
+    const st = document.getElementById('smartStatus'); st.style.color = '#f1c40f'; st.innerText = 'Aranıyor...';
+    smartResults = []; smartSel = new Set(); renderSmart();
+    const pq = parseSmartQuery(q); const notes = [], errs = []; let tv = [], radio = [];
+    const jobs = [];
+    if (wantTv) jobs.push(searchTv(pq).then(r => { tv = r; }).catch(e => errs.push('TV: ' + (e && e.message || e))));
+    if (wantRadio) jobs.push(searchRadio(pq).then(r => { radio = r.list; if (r.note) notes.push(r.note); if (r.dropped) notes.push(r.dropped + ' http radyo güvenlik nedeniyle atlandı'); }).catch(e => errs.push('Radyo: ' + (e && e.message || e))));
+    await Promise.all(jobs);
+    if (tv.length > 700) { notes.push('TV sonuçlarının ilk 700 tanesi alındı, aramayı daraltabilirsiniz'); tv = tv.slice(0, 700); }
+    const seen = new Set(); smartResults = [];
+    tv.concat(radio).forEach(r => { const k = r.url.split('#')[0]; if (!seen.has(k)) { seen.add(k); smartResults.push(r); } });
+    smartSel = new Set(smartResults.map((_, i) => i));
+    if (!smartResults.length) { st.style.color = '#e74c3c'; st.innerText = 'Sonuç bulunamadı. ' + errs.join(' · ') + ' Başka bir kelime deneyin.'; renderSmart(); return; }
+    st.style.color = errs.length ? '#f1c40f' : '#2ecc71';
+    st.innerText = `${smartResults.length} yayın bulundu (TV ${tv.length}, Radyo ${radio.length}).` + (notes.length ? ' ' + notes.join('. ') + '.' : '') + (errs.length ? ' Hata: ' + errs.join(' · ') : '');
+    renderSmart();
+}
+
+function renderSmart() {
+    const box = document.getElementById('smartResults'), act = document.getElementById('smartActions');
+    if (!smartResults.length) { box.style.display = 'none'; act.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = 'block'; act.style.display = 'block';
+    box.innerHTML = smartResults.slice(0, 200).map((r, i) => `<label class="yt-search-item"><input type="checkbox" class="q-chk" data-i="${i}" ${smartSel.has(i) ? 'checked' : ''} onchange="smartToggle(${i}, this.checked)">${r.logo ? `<img src="${esc(r.logo)}" onerror="this.style.display='none'">` : ''}<span>${esc(r.name)}<br><small style="color:#888">${esc(r.group || '')}${r.cc ? ' · ' + esc(r.cc.toUpperCase()) : ''}</small></span></label>`).join('')
+        + (smartResults.length > 200 ? `<div style="padding:8px; font-size:0.7rem; color:#aaa; text-align:center;">İlk 200 gösteriliyor. Seçim ve ekleme tüm ${smartResults.length} sonucu kapsar.</div>` : '');
+    updateSmartCount(); fillSmartTargets();
+}
+function updateSmartCount() { const el = document.getElementById('smartCount'); if (el) el.innerText = `Seçili: ${smartSel.size} / ${smartResults.length}`; }
+function smartToggle(i, on) { if (on) smartSel.add(i); else smartSel.delete(i); updateSmartCount(); }
+function refreshSmartChecks() {
+    document.querySelectorAll('#smartResults .q-chk').forEach(cb => { const i = +cb.dataset.i; cb.checked = smartSel.has(i); const lb = cb.closest('label'); if (lb) lb.style.opacity = smartResults[i] && smartResults[i].dead ? '.4' : ''; });
+    updateSmartCount();
+}
+function smartSelectAll(on) { smartSel = on ? new Set(smartResults.map((r, i) => i).filter(i => !smartResults[i].dead)) : new Set(); refreshSmartChecks(); }
+
+function fillSmartTargets() {
+    const sel = document.getElementById('smartTarget'); if (!sel) return; const prev = sel.value; sel.innerHTML = '';
+    const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+    add('__new__', '➕ Yeni liste oluştur');
+    Array.from(document.getElementById('countrySelect').options).forEach(o => add(o.value, o.textContent));
+    if (prev && Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
+    smartTargetChanged();
+}
+function smartTargetChanged() { const sel = document.getElementById('smartTarget'), nm = document.getElementById('smartNewName'); if (sel && nm) nm.style.display = sel.value === '__new__' ? 'block' : 'none'; }
+
+async function smartTest() {
+    const btn = document.getElementById('smartTestBtn');
+    if (isSmartTesting) { smartAbort.abort(); return; }
+    const idxs = [...smartSel]; if (!idxs.length) { alert('Önce kanal seçin.'); return; }
+    if (idxs.length > 150 && !confirm(`${idxs.length} yayın test edilecek, biraz sürebilir. Devam edilsin mi?`)) return;
+    isSmartTesting = true; smartAbort = new AbortController(); const sig = smartAbort.signal; btn.innerText = 'Durdur';
+    const st = document.getElementById('smartStatus'); st.style.color = '#f1c40f'; let fail = 0;
+    for (let i = 0; i < idxs.length; i += 6) {
+        if (sig.aborted) break;
+        st.innerText = `Test ediliyor: ${Math.min(i, idxs.length)}/${idxs.length} · elenen: ${fail}`;
+        await Promise.all(idxs.slice(i, i + 6).map(async idx => {
+            const ok = await testStreamBackground(smartResults[idx].url, 6000);
+            if (sig.aborted) return;
+            if (!ok) { smartSel.delete(idx); smartResults[idx].dead = true; fail++; }
+        }));
+        refreshSmartChecks();
+    }
+    isSmartTesting = false; btn.innerText = 'Test Et';
+    st.style.color = '#2ecc71'; st.innerText = sig.aborted ? `Test durduruldu. ${fail} yayın elendi.` : `Test bitti: ${fail} yayın elendi, ${smartSel.size} seçili kaldı.`;
+}
+
+/* Yerel (kullanıcı) listeler */
+function getLocalList(id) { try { return JSON.parse(localStorage.getItem('tvl_' + id)) || []; } catch (e) { return []; } }
+function saveLocalList(id, arr) { try { localStorage.setItem('tvl_' + id, JSON.stringify(arr)); return true; } catch (e) { showOSD('Kaydedilemedi', 'Tarayıcı depolaması dolu olabilir'); return false; } }
+function collectLocalLists() { const o = {}; personalPresets.forEach(p => { if (p && p.url && String(p.url).startsWith('local_')) o[p.url] = getLocalList(p.url); }); return o; }
+function persistLocalIfNeeded() {
+    if (!String(currentListContext).startsWith('local_')) return;
+    const arr = allChannels.filter(c => !c.id.startsWith('ch_ex_')).slice().sort((a, b) => a.originalIndex - b.originalIndex).map(c => ({ name: c.name, url: c.url, logo: c.logo || '' }));
+    saveLocalList(currentListContext, arr);
+}
+function loadLocalList(id) {
+    const stat = document.getElementById('status'); curIdx = -1; allChannels = [];
+    const arr = getLocalList(id);
+    allChannels = arr.map((c, i) => ({ id: 'ch_' + (globalIdCounter++), originalIndex: i, name: c.name, url: c.url, logo: c.logo || '', broken: brokenUrls.includes(c.url), isFavorite: favUrls.includes(c.url) }));
+    injectExtraChannels(); sortAndRenderList();
+    stat.innerText = arr.length ? 'Liste Hazır!' : 'Bu liste boş';
+    showOSD(arr.length ? 'Liste Yüklendi' : 'Liste boş', arr.length + ' kanal');
+    if (allChannels.length) document.getElementById('previewTitle').innerText = 'Kanal Seçin';
+    if (isSimpleMode && allChannels.length > 0) { const li = allChannels.findIndex(c => c.url === localStorage.getItem('tv_last_channel')); play(li >= 0 ? li : 0, 1); }
+}
+
+function smartAddToList() {
+    const idxs = [...smartSel].sort((a, b) => a - b); if (!idxs.length) { alert('Önce eklenecek kanalları seçin.'); return; }
+    const target = document.getElementById('smartTarget').value;
+    const chs = idxs.map(i => ({ name: smartResults[i].name, url: smartResults[i].url, logo: smartResults[i].logo || '' }));
+    if (target === '__new__') {
+        const name = document.getElementById('smartNewName').value.trim() || document.getElementById('smartQuery').value.trim() || 'Yeni Liste';
+        const id = 'local_' + Date.now();
+        if (!saveLocalList(id, chs)) return;
+        personalPresets.push({ name, url: id }); localStorage.setItem('tv_presets', JSON.stringify(personalPresets));
+        document.getElementById('smartNewName').value = '';
+        syncAndChangeCountry(id); fillSmartTargets();
+        showOSD('Liste oluşturuldu', name + ' · ' + chs.length + ' kanal');
+        setTimeout(() => { closeAllDrawers(); openRightSidebar(); }, 400);
+    } else if (target.startsWith('local_')) {
+        const cur = getLocalList(target); const have = new Set(cur.map(c => c.url)); let added = 0;
+        chs.forEach(c => { if (!have.has(c.url)) { cur.push(c); have.add(c.url); added++; } });
+        if (!saveLocalList(target, cur)) return;
+        if (currentListContext === target) loadLocalList(target);
+        showOSD('Listeye eklendi', added + ' yeni kanal');
+    } else {
+        const arr = extraChannelsDict[target] || (extraChannelsDict[target] = []); const have = new Set(arr.map(c => c.url)); let added = 0;
+        chs.forEach((c, k) => { if (!have.has(c.url)) { arr.push({ id: 'ch_ex_' + Date.now() + '_' + k, name: c.name, url: c.url, logo: c.logo, isFavorite: favUrls.includes(c.url) }); have.add(c.url); added++; } });
+        try { localStorage.setItem('tv_extras_dict', JSON.stringify(extraChannelsDict)); } catch (e) { showOSD('Kaydedilemedi'); return; }
+        if (currentListContext === target) { injectExtraChannels(); sortAndRenderList(); }
+        showOSD('Listeye eklendi', added + ' yeni kanal');
+    }
+}
+
+/* Ses (radyo) akışını doğrudan oynat */
+function playAudioDirect(video, url, token) {
+    video.removeAttribute('crossorigin');
+    video.src = url.split('#')[0];
+    video.play().then(() => { if (token === currentPlaySession) document.getElementById('pStatus').innerText = 'Radyo Çalıyor'; }).catch(e => {
+        if (e && e.name === 'NotAllowedError') { document.getElementById('pStatus').innerText = 'Tıklayın'; showOSD('Tarayıcı Engelledi'); }
+        else if (!e || e.name !== 'AbortError') handleStreamError(token);
+    });
+}
+
+/* Karantina yönetimi */
+function buildQuarBar() {
+    const bset = new Set(allChannels.filter(c => c.broken).map(c => c.id)); [...quarSel].forEach(id => { if (!bset.has(id)) quarSel.delete(id); });
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<div class="broken-divider"><span>Yayın Alınamayan Kanallar (${bset.size})</span></div>
+        <div class="quar-bar">
+            <button class="btn" onclick="retestQuarantine(false)">${isQuarTesting ? 'Durdur' : 'Hepsini Yeniden Test Et'}</button>
+            <button class="btn" id="quarSelBtn" onclick="retestQuarantine(true)">Seçilileri Test Et (${quarSel.size})</button>
+            <button class="btn" onclick="quarSelectAll()">Tümünü Seç / Bırak</button>
+            <button class="btn" onclick="quarRelease()">Seçilileri Çıkar</button>
+        </div>`;
+    return wrap;
+}
+function updateQuarCount() { const el = document.getElementById('quarSelBtn'); if (el) el.textContent = `Seçilileri Test Et (${quarSel.size})`; }
+function quarToggle(ev, id) { ev.stopPropagation(); if (quarSel.has(id)) quarSel.delete(id); else quarSel.add(id); updateQuarCount(); }
+function quarSelectAll() {
+    const ids = allChannels.filter(c => c.broken).map(c => c.id); const all = ids.length > 0 && ids.every(id => quarSel.has(id));
+    quarSel = all ? new Set() : new Set(ids);
+    document.querySelectorAll('.q-chk[data-id]').forEach(cb => { cb.checked = quarSel.has(cb.dataset.id); }); updateQuarCount();
+}
+function quarRelease() {
+    if (!quarSel.size) { showOSD('Önce kanal seçin'); return; }
+    const urls = new Set(allChannels.filter(c => quarSel.has(c.id)).map(c => c.url));
+    allChannels.forEach(c => { if (urls.has(c.url)) c.broken = false; });
+    brokenUrls = brokenUrls.filter(u => !urls.has(u)); localStorage.setItem('tv_broken', JSON.stringify(brokenUrls));
+    const n = quarSel.size; quarSel.clear(); keepScroll(sortAndRenderList); showOSD('Karantinadan çıkarıldı', n + ' kanal');
+}
+function keepScroll(fn) { const cl = document.getElementById('channelList'); const top = cl.scrollTop; cl.style.scrollBehavior = 'auto'; fn(); cl.scrollTop = top; setTimeout(() => { cl.style.scrollBehavior = ''; }, 50); }
+function retestOne(ev, id) { ev.stopPropagation(); const ch = allChannels.find(c => c.id === id); if (ch) runQuarTest([ch]); }
+function retestQuarantine(onlySelected) {
+    if (isQuarTesting) { quarAbort.abort(); return; }
+    const list = allChannels.filter(c => c.broken && (!onlySelected || quarSel.has(c.id)));
+    if (!list.length) { showOSD(onlySelected ? 'Seçili kanal yok' : 'Karantinada kanal yok'); return; }
+    runQuarTest(list);
+}
+async function runQuarTest(list) {
+    if (isQuarTesting) { quarAbort.abort(); return; }
+    isQuarTesting = true; quarAbort = new AbortController(); const sig = quarAbort.signal;
+    const stat = document.getElementById('status'); let ok = 0; keepScroll(sortAndRenderList);
+    for (let i = 0; i < list.length; i += 4) {
+        if (sig.aborted) break;
+        stat.style.color = '#f1c40f'; stat.innerText = `Karantina testi: ${i}/${list.length} · kurtarılan: ${ok}`;
+        await Promise.all(list.slice(i, i + 4).map(async ch => {
+            const works = await testStreamBackground(ch.url, 8000);
+            if (sig.aborted || !works) return;
+            ok++; quarSel.delete(ch.id); allChannels.forEach(c => { if (c.url === ch.url) c.broken = false; });
+            brokenUrls = brokenUrls.filter(u => u !== ch.url);
+        }));
+        localStorage.setItem('tv_broken', JSON.stringify(brokenUrls)); keepScroll(sortAndRenderList);
+    }
+    isQuarTesting = false; keepScroll(sortAndRenderList);
+    stat.style.color = '#2ecc71'; stat.innerText = sig.aborted ? `Test durduruldu · ${ok} kanal kurtarıldı` : `Karantina testi bitti · ${ok}/${list.length} kanal tekrar çalışıyor`;
+    showOSD(sig.aborted ? 'Test Durduruldu' : 'Karantina Testi Bitti', ok + ' kanal karantinadan çıktı');
+}
+
 </script>
 
 </body>
